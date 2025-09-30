@@ -1,0 +1,37 @@
+{
+  "name": "run_sim",
+  "description": "Simulate candidate pit strategies and return projections by-lap (p50/p90/p10) and a median gap metric.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "base_lap": { "type": "integer", "minimum": 1 },
+      "base_target_gap_s": { "type": "number" },
+      "current_compound": {
+        "type": "string",
+        "enum": ["soft", "medium", "hard"]
+      },
+      "current_tire_age": { "type": "integer", "minimum": 0 },
+      "candidates": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 6,
+        "items": {
+          "type": "object",
+          "properties": {
+            "pit_lap": { "type": "integer", "minimum": 1 },
+            "compound": { "type": "string", "enum": ["soft", "medium", "hard"] }
+          },
+          "required": ["pit_lap", "compound"]
+        }
+      },
+      "mc_samples": { "type": "integer", "minimum": 10, "maximum": 2000 }
+    },
+    "required": [
+      "base_lap",
+      "base_target_gap_s",
+      "current_compound",
+      "current_tire_age",
+      "candidates"
+    ]
+  }
+}

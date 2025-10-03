@@ -1,3 +1,4 @@
+// frontend/components/Plot.js
 import { Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -9,6 +10,8 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import annotationPlugin from "chartjs-plugin-annotation";
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -16,45 +19,95 @@ ChartJS.register(
   LineElement,
   Filler,
   Tooltip,
-  Legend
+  Legend,
+  annotationPlugin
 );
 
+const PALETTE = [
+  "rgb(37,99,235)", // blue
+  "rgb(16,185,129)", // green
+  "rgb(249,115,22)", // orange
+  "rgb(147,51,234)", // purple
+  "rgb(220,38,38)", // red
+];
+
 export default function Plot({ simResult }) {
-  const cand = simResult.candidates[0];
-  const p50 = cand.p50_by_lap;
-  const p10 = cand.p10_by_lap;
-  const p90 = cand.p90_by_lap;
-  const labels = p50.map((_, i) => (simResult.base_lap || 0) + i);
+  const baseLap = simResult.base_lap || 0;
+  const cands = simResult.candidates || [];
+  if (!cands.length) return null;
 
-  const data = {
-    labels,
-    datasets: [
-      {
-        label: "P50 (median)",
-        data: p50,
-        borderColor: "rgb(37,99,235)",
-        fill: false,
-      },
-      {
+  // x-axis labels from the longest series
+  const maxLen = Math.max(...cands.map((c) => (c.p50_by_lap || []).length));
+  const labels = Array.from({ length: maxLen }, (_, i) => baseLap + i);
+
+  const datasets = [];
+  const annotations = {};
+
+  cands.forEach((cand, idx) => {
+    const color = PALETTE[idx % PALETTE.length];
+    const label = `P50 • Lap ${cand.candidate?.pit_lap} • ${String(
+      cand.candidate?.compound || ""
+    ).toUpperCase()}`;
+
+    // P50 line for this candidate
+    datasets.push({
+      label,
+      data: cand.p50_by_lap || [],
+      borderColor: color,
+      backgroundColor: color,
+      tension: 0.25,
+      pointRadius: 0,
+      fill: false,
+    });
+
+    // Optional: uncertainty band for the first candidate only
+    if (idx === 0 && cand.p10_by_lap && cand.p90_by_lap) {
+      datasets.push({
         label: "P10",
-        data: p10,
-        borderColor: "rgb(16,185,129)",
+        data: cand.p10_by_lap,
+        borderColor: color,
+        borderDash: [6, 6],
+        pointRadius: 0,
         fill: false,
-        borderDash: [5, 5],
-      },
-      {
+      });
+      datasets.push({
         label: "P90",
-        data: p90,
-        borderColor: "rgb(249,115,22)",
+        data: cand.p90_by_lap,
+        borderColor: color,
+        borderDash: [6, 6],
+        pointRadius: 0,
         fill: "-1",
-        backgroundColor: "rgba(249,115,22,0.08)",
-      },
-    ],
-  };
+        backgroundColor: "rgba(0,0,0,0.05)",
+      });
+    }
 
+    // Vertical pit marker
+    const pitIdx = cand.pit_index ?? null;
+    if (pitIdx !== null && pitIdx >= 0 && pitIdx < labels.length) {
+      annotations[`pit-${idx}`] = {
+        type: "line",
+        xMin: labels[pitIdx],
+        xMax: labels[pitIdx],
+        borderColor: color,
+        borderWidth: 2,
+        borderDash: [2, 4],
+        label: {
+          display: true,
+          content: `Pit ${labels[pitIdx]}`,
+          position: "start",
+          backgroundColor: "rgba(255,255,255,0.8)",
+          color: "#111827",
+          padding: 4,
+        },
+      };
+    }
+  });
+
+  const data = { labels, datasets };
   const options = {
     responsive: true,
-    plugins: { legend: { position: "top" } },
+    interaction: { mode: "index", intersect: false },
+    plugins: { legend: { position: "top" }, annotation: { annotations } },
     scales: {
       y: { title: { display: true, text: "Gap (s) — positive = you ahead" } },
       x: { title: { display: true, text: "Lap number" } },

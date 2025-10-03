@@ -1,94 +1,122 @@
 # agent/explainer.py
-import json
-from typing import Dict, Any
-from agent.config import LLMConfig
-from agent.llm_client import ChatClient
-from agent.schemas import Explanation
-from pydantic import ValidationError
-
-SYSTEM_EXPLAINER = (
-    "You are the PitStop AI EXPLAINER. You will receive the validated JSON output from the run_sim tool. "
-    "Return ONLY a single JSON object (no surrounding prose, no markdown) that strictly matches this structure:\n"
-    "{\n"
-    '  "decision": "<single-line recommendation>",\n'
-    '  "rationale": ["<bullet 1>", "<bullet 2>", "<bullet 3 (optional)>"],\n'
-    '  "assumptions": ["<assumption A>", "<assumption B>", ...],\n'
-    '  "risks": ["<risk A>", "<risk B>", ...],\n'
-    '  "fallback": "<what to do if plan invalidates>",\n'
-    '  "metrics": {"median_gap_by_lap": {"lap": <int>, "gap_seconds": <float>}}  # optional\n'
-    "}\n"
-    "Rules:\n"
-    "1) Use ONLY numeric values and fields present in the run_sim JSON. Do NOT invent values. If the specific metric is not present, omit it.\n"
-    "2) Keep rationale limited to at most 3 compact bullets. Each bullet must be actionable and reference a sim value if relevant.\n"
-    "3) The decision field must be a single short line (e.g., 'Pit lap 12 (medium) — recommended').\n"
-    "4) If your JSON is invalid, the caller will retry once with stronger instruction; do not add commentary.\n"
-)
-
-# Construct the messages the explainer LLM will receive
+from typing import List, Dict, Any
+from pydantic import BaseModel
 
 
-def build_explainer_messages(tool_args: Dict[str, Any], sim_result: Dict[str, Any]) -> list:
+class Explanation(BaseModel):
+    decision: str
+    rationale: List[str]
+    assumptions: List[str]
+    risks: List[str]
+    fallback: str
+    metrics: Dict[str, Any]
+
+
+def _safe_float(x, default=None):
+    try:
+        return float(x)
+    except Exception:
+        return default
+
+
+def _best_candidate_index(sim_result: Dict[str, Any]) -> int:
     """
-    Returns a list of messages to send to the explainer LLM.
-    The 'user' message includes both the original tool args and the sim_result payload.
+    Choose the strategy that maximizes median_gap_after_5_laps
+    (i.e., least negative / most positive = best).
     """
-    content = {
-        "context": {"tool": "run_sim", "args": tool_args},
-        "result": sim_result
-    }
-    return [
-        {"role": "system", "content": SYSTEM_EXPLAINER},
-        {"role": "user", "content": "Here is the run_sim JSON. Produce ONLY the JSON explanation as specified."},
-        {"role": "user", "content": json.dumps(content)}
+    cands = sim_result.get("candidates", [])
+    if not cands:
+        return 0
+    return max(
+        range(len(cands)),
+        key=lambda i: _safe_float(cands[i].get(
+            "median_gap_after_5_laps"), float("-inf")),
+    )
+
+
+def _label(cand: Dict[str, Any]) -> str:
+    pit = cand.get("candidate", {}).get("pit_lap")
+    comp = str(cand.get("candidate", {}).get("compound", "")).lower()
+    return f"Pit lap {pit} ({comp})"
+
+
+def explain(tool_args: Dict[str, Any], sim_result: Dict[str, Any], cfg=None) -> Explanation:
+    """
+    Produce a concise, deterministic explanation without LLM dependency.
+    - Picks best candidate by highest median_gap_after_5_laps.
+    - Summarizes the comparison and key assumptions/risks.
+    """
+    cands = sim_result.get("candidates", [])
+    if not cands:
+        # Shouldn't happen, but guard for safety
+        return Explanation(
+            decision="No strategy found",
+            rationale=["Simulation returned no candidates."],
+            assumptions=[],
+            risks=[],
+            fallback="Retry with at least one candidate.",
+            metrics={}
+        )
+
+    best_idx = _best_candidate_index(sim_result)
+    best = cands[best_idx]
+    best_label = _label(best)
+    best_m5 = _safe_float(best.get("median_gap_after_5_laps"), 0.0)
+
+    # Build comparison lines against all other candidates
+    deltas: List[str] = []
+    for i, c in enumerate(cands):
+        if i == best_idx:
+            continue
+        lab = _label(c)
+        m5 = _safe_float(c.get("median_gap_after_5_laps"), 0.0)
+        delta = best_m5 - m5  # positive means best is better by +delta seconds
+        deltas.append(f"{best_label} beats {lab} by {delta:+.2f}s at +5 laps")
+
+    # Assumptions (read from any candidate; they should be identical)
+    assumptions_src = (best.get("assumptions") or {})
+    assumptions_lines = [
+        f"pit_loss_mean = {assumptions_src.get('pit_loss_mean', '21.0')}",
+        f"pit_loss_std = {assumptions_src.get('pit_loss_std', '0.5')}",
+        f"deg_soft = {assumptions_src.get('deg_soft', 'start=12, +0.12s/lap')}",
+        f"deg_medium = {assumptions_src.get('deg_medium', 'start=18, +0.10s/lap')}",
+        f"deg_hard = {assumptions_src.get('deg_hard', 'start=22, +0.08s/lap')}",
+        f"noise_std_per_lap_s = {assumptions_src.get('noise_std_per_lap_s', '0.03')}",
     ]
 
+    # Core rationale lines
+    rationale: List[str] = [
+        f"Median gap @ +5 laps for {best_label}: {best_m5:.2f}s (higher is better)."]
+    # Also list each candidate's m5 for transparency
+    for c in cands:
+        lab = _label(c)
+        m5 = _safe_float(c.get("median_gap_after_5_laps"), 0.0)
+        rationale.append(f"{lab}: {m5:.2f}s @ +5 laps")
+    rationale += deltas
 
-def _parse_and_validate(raw_text: str) -> Explanation:
-    """
-    Parse the raw_text as JSON and validate against the Explanation Pydantic model.
-    Raises ValueError on JSON parse error or ValidationError on schema mismatch.
-    """
-    data = json.loads(raw_text)
-    return Explanation(**data)
+    # Simple risk/fallback set
+    risks = [
+        "Traffic on rejoin could reduce the expected gains",
+        "Safety Car before/after the stop may invalidate projections",
+    ]
+    fallback = (
+        "If a Safety Car appears before the planned stop, prefer to box under SC "
+        "(reduced pit-loss) provided stint length/compound rules are satisfied; "
+        "otherwise reassess on green. If heavy traffic on rejoin is likely, consider "
+        "offsetting by ±1 lap once racing resumes."
+    )
 
+    # Metrics block mirrors what the UI uses
+    metrics = {
+        "median_gap_by_lap": {"lap": 5, "gap_seconds": best_m5},
+        "selected_index": best_idx,
+    }
 
-def explain(tool_args: Dict[str, Any], sim_result: Dict[str, Any], cfg: LLMConfig) -> Explanation:
-    """
-    Call the explainer LLM to convert sim_result into a structured Explanation.
-    Returns a validated Explanation Pydantic model instance.
-    Retries once with a stricter instruction if the first attempt fails validation.
-    """
-    client = ChatClient(cfg)
-    messages = build_explainer_messages(tool_args, sim_result)
-
-    # First attempt
-    resp = client.chat(model=cfg.explainer_model,
-                       messages=messages, max_tokens=400, temperature=0.0)
-    raw = resp["choices"][0]["message"]["content"]
-
-    try:
-        expl = _parse_and_validate(raw)
-        return expl
-    except (json.JSONDecodeError, ValidationError, ValueError) as e:
-        # Log the failing output for debugging
-        print("Explainer first attempt failed validation/parsing. Raw output:")
-        print(raw)
-        # Retry once with a stronger instruction
-        messages_retry = messages.copy()
-        # Prepend an explicit important line to the system prompt to force JSON-only output
-        messages_retry[0] = {
-            "role": "system",
-            "content": SYSTEM_EXPLAINER + "\nIMPORTANT: OUTPUT MUST BE VALID JSON ONLY. DO NOT INCLUDE ANY TEXT OUTSIDE THE JSON."
-        }
-        resp2 = client.chat(model=cfg.explainer_model,
-                            messages=messages_retry, max_tokens=400, temperature=0.0)
-        raw2 = resp2["choices"][0]["message"]["content"]
-        try:
-            expl2 = _parse_and_validate(raw2)
-            return expl2
-        except (json.JSONDecodeError, ValidationError, ValueError) as e2:
-            # Final failure: raise an informative error
-            print("Explainer retry also failed. Raw output (retry):")
-            print(raw2)
-            raise RuntimeError(
-                "Explainer failed to produce valid JSON after retry.") from e2
+    return Explanation(
+        decision=f"{best_label} — recommended",
+        rationale=rationale,
+        assumptions=assumptions_lines,
+        risks=risks,
+        fallback=fallback,
+        metrics=metrics,
+    )

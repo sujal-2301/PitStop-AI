@@ -1,6 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import Plot from "../components/Plot";
+import ComparePanel from "../components/ComparePanel";
 import ExplainerCard from "../components/ExplainerCard";
 
 export default function Home() {
@@ -71,6 +72,7 @@ export default function Home() {
         {simResult ? (
           <>
             <Plot simResult={simResult} />
+            <ComparePanel simResult={simResult} />
             <ExplainerCard explanation={explanation} />
           </>
         ) : (

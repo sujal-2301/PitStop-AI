@@ -3,6 +3,8 @@ import axios from "axios";
 import Plot from "../components/Plot";
 import ComparePanel from "../components/ComparePanel";
 import ExplainerCard from "../components/ExplainerCard";
+import AIProcessVisualization from "../components/AIProcessVisualization";
+import ImpactDashboard from "../components/ImpactDashboard";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
 
@@ -347,59 +349,12 @@ export default function Home() {
         </div>
 
         {loading && (
-          <div className="bg-gradient-to-br from-white to-blue-50 rounded-2xl shadow-xl p-12 text-center border-2 border-blue-200">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full mb-6">
-              <svg
-                className="animate-spin h-10 w-10 text-white"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="none"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-            </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">
-              Running Simulation
-            </h3>
-            <p className="text-gray-600">
-              Analyzing pit strategies with AI-powered Monte Carlo simulation...
-            </p>
-            <div className="mt-6 flex justify-center gap-8 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-                <span className="text-gray-600">Planning</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-3 h-3 bg-purple-500 rounded-full animate-pulse"
-                  style={{ animationDelay: "0.2s" }}
-                ></div>
-                <span className="text-gray-600">Simulating</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-3 h-3 bg-indigo-500 rounded-full animate-pulse"
-                  style={{ animationDelay: "0.4s" }}
-                ></div>
-                <span className="text-gray-600">Analyzing</span>
-              </div>
-            </div>
-          </div>
+          <AIProcessVisualization isActive={loading} simResult={simResult} />
         )}
 
         {simResult ? (
           <>
+            <ImpactDashboard simResult={simResult} explanation={explanation} />
             <Plot simResult={simResult} />
             <ComparePanel simResult={simResult} />
             <ExplainerCard explanation={explanation} />

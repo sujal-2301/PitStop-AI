@@ -6,3 +6,6 @@ __pycache__/
 node_modules/
 .DS_Store
 .next/
+HACKATHON_CHECKLIST.md
+IMPROVEMENTS.md
+SETUP_GUIDE.md

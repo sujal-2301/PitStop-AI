@@ -48,11 +48,15 @@ def simulate(
     base_lap: int,
     candidates: List[Strategy],
     constraints: Constraints | None = None,
-    cfg: SimConfig | None = None
+    cfg: SimConfig | None = None,
+    sc_window: Dict[str, int] | None = None,
+    sc_pit_loss_factor: float = 1.0
 ) -> Dict[str, Any]:
     """
     df: laps table with base_pace_s per lap (clean air). We simulate from base_lap onward.
     base_target_gap_s: positive => you're ahead; negative => you're behind (gap to target car)
+    sc_window: Optional dict with 'start_lap' and 'end_lap' for Safety Car period
+    sc_pit_loss_factor: Multiplier for pit loss during SC (e.g., 0.6 = 40% faster stop)
     """
     constraints = constraints or Constraints()
     cfg = cfg or SimConfig()
@@ -60,6 +64,12 @@ def simulate(
     laps = df[df["lap"] >= base_lap].copy().reset_index(drop=True)
     if laps.empty:
         raise ValueError("No laps to simulate from base_lap.")
+    
+    # Helper to check if a lap is within SC window
+    def is_sc_lap(lap_num: int) -> bool:
+        if not sc_window:
+            return False
+        return sc_window.get("start_lap", 999) <= lap_num <= sc_window.get("end_lap", 0)
 
     # helper to project lap times for a stint from a given starting tire age and compound
     def project_stint(compound: Compound, start_age: int, num_laps: int, rng: np.random.Generator):
@@ -109,8 +119,12 @@ def simulate(
             else:
                 before = project_stint(
                     current_compound, current_tire_age, pit_index, rg)
-                # pit loss sample
-                pit_loss = rg.normal(cfg.pit_loss_mean, cfg.pit_loss_std)
+                # pit loss sample - reduced if pitting during SC
+                base_pit_loss = rg.normal(cfg.pit_loss_mean, cfg.pit_loss_std)
+                if is_sc_lap(cand.pit_lap):
+                    pit_loss = base_pit_loss * sc_pit_loss_factor
+                else:
+                    pit_loss = base_pit_loss
                 after = project_stint(
                     cand.compound, 0, total_laps - pit_index, rg)
                 lt = np.concatenate([before, after])  # lap times
@@ -144,6 +158,15 @@ def simulate(
             idx = min(pit_index + 5, len(p50) - 1)
         med_gap_at_5 = float(p50[idx])
 
+        # Breakeven lap: first lap where median gap returns to pre-pit level
+        breakeven_lap = None
+        if pit_index is not None and pit_index > 0:
+            pre_pit_gap = float(p50[pit_index - 1]) if pit_index > 0 else base_target_gap_s
+            for i in range(pit_index, len(p50)):
+                if p50[i] >= pre_pit_gap:
+                    breakeven_lap = int(laps["lap"].iloc[0] + i)
+                    break
+
         results.append({
             "candidate": {"pit_lap": int(cand.pit_lap), "compound": cand.compound},
             "p50_by_lap": p50.tolist(),
@@ -151,13 +174,16 @@ def simulate(
             "p10_by_lap": p10.tolist(),
             "median_gap_after_5_laps": med_gap_at_5,
             "pit_index": None if pit_index is None else int(pit_index),
+            "breakeven_lap": breakeven_lap,
             "assumptions": {
                 "pit_loss_mean": cfg.pit_loss_mean,
                 "pit_loss_std": cfg.pit_loss_std,
                 "deg_soft": f"start={cfg.deg_soft_start}, +{cfg.deg_soft_per_lap:.2f}s/lap",
                 "deg_medium": f"start={cfg.deg_med_start}, +{cfg.deg_med_per_lap:.2f}s/lap",
                 "deg_hard": f"start={cfg.deg_hard_start}, +{cfg.deg_hard_per_lap:.2f}s/lap",
-                "noise_std_per_lap_s": 0.03
+                "noise_std_per_lap_s": 0.03,
+                "sc_active": sc_window is not None,
+                "sc_pit_loss_factor": sc_pit_loss_factor if sc_window else None
             }
         })
 

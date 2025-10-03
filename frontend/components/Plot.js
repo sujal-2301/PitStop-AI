@@ -103,6 +103,44 @@ export default function Plot({ simResult }) {
     }
   });
 
+  // Add zero reference line
+  annotations.zeroLine = {
+    type: "line",
+    yMin: 0,
+    yMax: 0,
+    borderColor: "#9CA3AF",
+    borderWidth: 1,
+    borderDash: [4, 4],
+    label: {
+      display: true,
+      content: "Zero gap",
+      position: "end",
+      backgroundColor: "rgba(255,255,255,0.8)",
+      color: "#6B7280",
+      font: { size: 10 },
+    },
+  };
+
+  // Add SC window shading if present
+  const scWindow = simResult.sc_window;
+  if (scWindow && scWindow.start_lap && scWindow.end_lap) {
+    annotations.scShading = {
+      type: "box",
+      xMin: scWindow.start_lap,
+      xMax: scWindow.end_lap,
+      backgroundColor: "rgba(255, 215, 0, 0.12)",
+      borderColor: "rgba(255, 215, 0, 0.4)",
+      borderWidth: 1,
+      label: {
+        display: true,
+        content: "Safety Car",
+        position: "start",
+        color: "#92400E",
+        font: { size: 11, weight: "bold" },
+      },
+    };
+  }
+
   const data = { labels, datasets };
   const options = {
     responsive: true,

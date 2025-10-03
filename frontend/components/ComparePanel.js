@@ -8,10 +8,12 @@ export default function ComparePanel({ simResult }) {
     const pitLap = c.candidate?.pit_lap;
     const comp = String(c.candidate?.compound || "").toUpperCase();
     const m5 = c.median_gap_after_5_laps; // negative = still behind
+    const breakeven = c.breakeven_lap;
     return {
       idx,
       label: `Pit ${pitLap} • ${comp}`,
       median5: m5,
+      breakeven,
     };
   });
 
@@ -33,12 +35,17 @@ export default function ComparePanel({ simResult }) {
             <div
               key={r.idx}
               className={`border rounded p-3 ${
-                isBest ? "border-green-500" : "border-gray-200"
+                isBest ? "border-green-500 bg-green-50" : "border-gray-200"
               }`}
             >
               <div className="font-medium">{r.label}</div>
               <div className="text-sm text-gray-600">Median gap @ +5 laps</div>
               <div className="text-xl">{r.median5.toFixed(2)} s</div>
+              {r.breakeven && (
+                <div className="text-sm text-blue-600 mt-1">
+                  Breakeven: Lap {r.breakeven}
+                </div>
+              )}
               {!isBest && (
                 <div className="text-sm mt-1">
                   Δ vs best:{" "}
@@ -46,7 +53,9 @@ export default function ComparePanel({ simResult }) {
                 </div>
               )}
               {isBest && (
-                <div className="text-sm text-green-600 mt-1">Best</div>
+                <div className="inline-block text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded mt-1">
+                  ✓ Best
+                </div>
               )}
             </div>
           );

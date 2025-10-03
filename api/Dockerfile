@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# system deps
+# system deps (curl needed for healthchecks)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl && rm -rf /var/lib/apt/lists/*
 

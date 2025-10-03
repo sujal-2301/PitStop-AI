@@ -10,79 +10,109 @@ from typing import List
 import requests
 import re
 import os
-
-# in api/main.py
+from functools import lru_cache
+import json
+import time
 
 app = FastAPI(title="PitStop AI — Simulation Service", version="0.1")
+
+# CORS - single configuration
 orig = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[orig, "http://127.0.0.1:3000"],
+    allow_origins=[orig, "http://localhost:3000", "http://127.0.0.1:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Small in-memory cache for repeated calls in demo (simple dict)
-_CACHE = {}
+# Global dataframe - loaded once on startup
+DF = None
+
+
+@app.on_event("startup")
+def load_race_data():
+    """Load CSV once at startup instead of per-request"""
+    global DF
+    try:
+        DF = pd.read_csv("data/synth_race.csv")
+        print(f"✓ Loaded race data: {len(DF)} laps")
+    except Exception as e:
+        print(f"✗ Failed to load race data: {e}")
+        DF = None
+
+
+@app.get("/healthz")
+def health():
+    """Health check endpoint for Docker and monitoring"""
+    return {
+        "status": "ok",
+        "data_loaded": DF is not None,
+        "service": "PitStop AI API"
+    }
+
+
+@lru_cache(maxsize=512)
+def _cached_simulate(args_json: str):
+    """LRU-cached simulation to avoid recomputing identical requests"""
+    args = json.loads(args_json)
+
+    if DF is None:
+        raise ValueError("Race data not loaded")
+
+    cfg = SimConfig()
+    if args.get("mc_samples"):
+        cfg.mc_samples = int(args["mc_samples"])
+
+    candidates = [Strategy(pit_lap=c["pit_lap"], compound=c["compound"])
+                  for c in args["candidates"]]
+
+    return simulate(
+        df=DF,
+        current_compound=args["current_compound"],
+        current_tire_age=args["current_tire_age"],
+        base_target_gap_s=args["base_target_gap_s"],
+        base_lap=args["base_lap"],
+        candidates=candidates,
+        cfg=cfg,
+        sc_window=args.get("sc_window"),
+        sc_pit_loss_factor=args.get("sc_pit_loss_factor", 1.0)
+    )
 
 
 @app.post("/run_sim", response_model=SimResponse)
 def run_sim(req: SimRequest):
-    # Basic anti-abuse / size checks already in schema (max 6 candidates)
-    # Load the seed dataset (for the hackathon demo). You can later replace with a DB or upload.
-    try:
-        df = pd.read_csv("data/synth_race.csv")
-    except Exception as e:
+    """
+    Run Monte-Carlo pit strategy simulation.
+    Now supports Safety Car windows and uses cached results.
+    """
+    if DF is None:
         raise HTTPException(
-            status_code=500, detail=f"Could not load race data: {e}")
+            status_code=500,
+            detail="Race data not loaded. Check server logs."
+        )
 
-    # Optionally override MC samples in SimConfig
-    cfg = SimConfig()
-    if req.mc_samples:
-        cfg.mc_samples = int(req.mc_samples)
+    # Build cacheable args dict
+    args = {
+        "base_lap": req.base_lap,
+        "base_target_gap_s": req.base_target_gap_s,
+        "current_compound": req.current_compound,
+        "current_tire_age": req.current_tire_age,
+        "candidates": [{"pit_lap": c.pit_lap, "compound": c.compound} for c in req.candidates],
+        "mc_samples": req.mc_samples or 200,
+        "sc_window": req.sc_window.dict() if req.sc_window else None,
+        "sc_pit_loss_factor": req.sc_pit_loss_factor or 1.0
+    }
 
-    # Build candidates for simulate()
-    candidates = [Strategy(pit_lap=c.pit_lap, compound=c.compound)
-                  for c in req.candidates]
-
-    # Simple cache key (stringified)
-    cache_key = f"{req.base_lap}-{req.base_target_gap_s}-{req.current_compound}-{req.current_tire_age}-{[(c.pit_lap,c.compound) for c in req.candidates]}-{cfg.mc_samples}"
-    if cache_key in _CACHE:
-        return _CACHE[cache_key]
+    args_json = json.dumps(args, sort_keys=True)
 
     try:
-        out = simulate(
-            df=df,
-            current_compound=req.current_compound,
-            current_tire_age=req.current_tire_age,
-            base_target_gap_s=req.base_target_gap_s,
-            base_lap=req.base_lap,
-            candidates=candidates,
-            cfg=cfg
-        )
+        out = _cached_simulate(args_json)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Simulation failed: {e}")
 
-    # Cast response to Pydantic model (SimResponse will validate types)
-    resp = SimResponse(**out)
-    _CACHE[cache_key] = resp
-    return resp
-
-# api/main.py  <-- append or merge with existing file
-
-
-# ensure CORS so Next.js dev server can call it
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # dev UI. Use ["*"] for quick dev
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# If app already exists above, skip creating a second FastAPI instance.
-# The following assumes `app` is already created in this file earlier.
+    return SimResponse(**out)
 
 
 class PlanRequest(BaseModel):
@@ -92,11 +122,10 @@ class PlanRequest(BaseModel):
 @app.post("/plan_and_explain")
 def plan_and_explain(req: PlanRequest):
     """
-    Orchestrates the planner -> /run_sim -> explainer.
-    Uses agent.planner.plan_and_run and agent.explainer.explain.
+    Orchestrates the planner -> /run_sim -> explainer with timing metrics.
+    Falls back to mock mode if LLM key is missing.
     """
     try:
-        # Lazy import to avoid import cycles during tests
         from agent.config import LLMConfig
         from agent.planner import plan_and_run
         from agent.explainer import explain
@@ -105,19 +134,48 @@ def plan_and_explain(req: PlanRequest):
             status_code=500, detail=f"Agent modules not available: {e}")
 
     cfg = LLMConfig()
+
+    # Fallback to mock if no LLM key
+    if not cfg.api_key or cfg.api_key == "":
+        print("⚠️  No LLM_API_KEY found - using mock mode")
+        return plan_and_explain_mock(req)
+
+    t0 = time.perf_counter()
     try:
         plan = plan_and_run(req.user_text, cfg)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Planner failed: {e}")
+    t1 = time.perf_counter()
 
     try:
         expl = explain(plan["tool_args"], plan["sim_result"], cfg)
     except Exception as e:
         # if explainer fails, still return sim_result so the UI isn't blocked
-        return {"tool_args": plan["tool_args"], "sim_result": plan["sim_result"], "explanation": None, "explainer_error": str(e)}
+        return {
+            "tool_args": plan["tool_args"],
+            "sim_result": plan["sim_result"],
+            "explanation": None,
+            "explainer_error": str(e),
+            "timings": {"planner_s": round(t1-t0, 3)}
+        }
+    t2 = time.perf_counter()
 
     # Explanation is a Pydantic model; convert to dict
-    return {"tool_args": plan["tool_args"], "sim_result": plan["sim_result"], "explanation": expl.dict()}
+    return {
+        "tool_args": plan["tool_args"],
+        "sim_result": plan["sim_result"],
+        "explanation": expl.dict(),
+        "timings": {
+            "planner_s": round(t1-t0, 3),
+            "explainer_s": round(t2-t1, 3),
+            "total_s": round(t2-t0, 3)
+        },
+        "meta": {
+            "provider": "Cerebras",
+            "planner_model": cfg.planner_model,
+            "explainer_model": cfg.explainer_model
+        }
+    }
 
 
 @app.post("/plan_and_explain_mock")

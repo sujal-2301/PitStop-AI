@@ -5,6 +5,7 @@ import ComparePanel from "../components/ComparePanel";
 import ExplainerCard from "../components/ExplainerCard";
 import AIProcessVisualization from "../components/AIProcessVisualization";
 import ImpactDashboard from "../components/ImpactDashboard";
+import GapEvolutionVisual from "../components/GapEvolutionVisual";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
 
@@ -30,7 +31,7 @@ function InfoTooltip({ children }) {
 }
 export default function Home() {
   const [userText, setUserText] = useState(
-    "We are 1.5 seconds behind at lap 10. Simulate pitting on lap 12 for mediums."
+    "We are 0.5 seconds ahead at lap 8. Should we pit on lap 12 for hard tires or lap 10 for mediums to extend our lead?"
   );
   const [loading, setLoading] = useState(false);
   const [simResult, setSimResult] = useState(null);
@@ -78,19 +79,23 @@ export default function Home() {
 
   const presets = [
     {
-      label: "Undercut (Lap 12 Medium)",
-      text: "We are 1.5s behind at lap 10. Simulate pit lap 12 medium and lap 14 hard.",
+      label: "🏆 Extend Lead Strategy",
+      text: "We are 0.5s ahead at lap 8. Should we pit lap 10 medium or lap 12 hard to maximize our advantage?",
     },
     {
-      label: "Overcut (Lap 16 Hard)",
-      text: "We are 0.8s ahead at lap 12. Compare staying out until lap 16 on hard vs pitting lap 14 medium.",
+      label: "🎯 Overtake Strategy",
+      text: "We are 0.3s behind at lap 15. Can we pit lap 18 soft and overtake, or stay out lap 20 medium?",
     },
     {
-      label: "SC Window Strategy",
-      text: "We are 2.0s behind at lap 9. Pit lap 11 medium or lap 15 hard.",
+      label: "⚡ Safety Car Opportunity",
+      text: "We are 1.2s ahead at lap 10. Pit lap 12 under Safety Car or wait until lap 15?",
       enableSC: true,
       scStart: 11,
       scEnd: 13,
+    },
+    {
+      label: "🔥 Closing the Gap",
+      text: "We are 0.8s behind at lap 12. Aggressive pit lap 14 soft vs conservative lap 16 medium?",
     },
   ];
 
@@ -206,13 +211,13 @@ export default function Home() {
             </div>
           </div>
 
-          <textarea
-            value={userText}
-            onChange={(e) => setUserText(e.target.value)}
-            rows={3}
-            className="w-full p-4 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-900 placeholder-gray-400"
-            placeholder="Example: We are 1.5 seconds behind at lap 10. Should we pit on lap 12 for medium tires or wait until lap 14 for hard tires?"
-          />
+            <textarea
+              value={userText}
+              onChange={(e) => setUserText(e.target.value)}
+              rows={3}
+              className="w-full p-4 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-900 placeholder-gray-400"
+              placeholder="Example: We are 0.5 seconds ahead at lap 10. Should we pit on lap 12 for hard tires or lap 14 for mediums to maximize our lead?"
+            />
 
           {/* Preset buttons */}
           <div className="mt-4">
@@ -355,8 +360,9 @@ export default function Home() {
         {simResult ? (
           <>
             <ImpactDashboard simResult={simResult} explanation={explanation} />
-            <Plot simResult={simResult} />
+            <GapEvolutionVisual simResult={simResult} />
             <ComparePanel simResult={simResult} />
+            <Plot simResult={simResult} />
             <ExplainerCard explanation={explanation} />
           </>
         ) : !loading ? (

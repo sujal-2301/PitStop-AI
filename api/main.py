@@ -122,39 +122,41 @@ class PlanRequest(BaseModel):
 @app.post("/plan_and_explain")
 def plan_and_explain(req: PlanRequest):
     """
-    Orchestrates the planner -> /run_sim -> explainer with timing metrics.
+    Orchestrates the iterative planner -> /run_sim -> explainer with full agent trace.
     Falls back to mock mode if LLM key is missing.
     """
     try:
         from agent.config import LLMConfig
-        from agent.planner import plan_and_run
+        from agent.iterative_planner import IterativePlanner
         from agent.explainer import explain
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Agent modules not available: {e}")
 
     cfg = LLMConfig()
-
+    
     # Fallback to mock if no LLM key
     if not cfg.api_key or cfg.api_key == "":
         print("⚠️  No LLM_API_KEY found - using mock mode")
         return plan_and_explain_mock(req)
-
+    
     t0 = time.perf_counter()
     try:
-        plan = plan_and_run(req.user_text, cfg)
+        planner = IterativePlanner(cfg)
+        result = planner.plan_iteratively(req.user_text)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Planner failed: {e}")
     t1 = time.perf_counter()
 
     try:
-        expl = explain(plan["tool_args"], plan["sim_result"], cfg)
+        expl = explain(result["tool_args"], result["sim_result"], cfg)
     except Exception as e:
         # if explainer fails, still return sim_result so the UI isn't blocked
         return {
-            "tool_args": plan["tool_args"],
-            "sim_result": plan["sim_result"],
-            "explanation": None,
+            "tool_args": result["tool_args"], 
+            "sim_result": result["sim_result"], 
+            "trace": result.get("trace"),
+            "explanation": None, 
             "explainer_error": str(e),
             "timings": {"planner_s": round(t1-t0, 3)}
         }
@@ -162,8 +164,9 @@ def plan_and_explain(req: PlanRequest):
 
     # Explanation is a Pydantic model; convert to dict
     return {
-        "tool_args": plan["tool_args"],
-        "sim_result": plan["sim_result"],
+        "tool_args": result["tool_args"], 
+        "sim_result": result["sim_result"],
+        "trace": result.get("trace"),  # Agent thinking trace
         "explanation": expl.dict(),
         "timings": {
             "planner_s": round(t1-t0, 3),

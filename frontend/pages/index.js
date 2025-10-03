@@ -3,9 +3,7 @@ import axios from "axios";
 import Plot from "../components/Plot";
 import ComparePanel from "../components/ComparePanel";
 import ExplainerCard from "../components/ExplainerCard";
-import AIProcessVisualization from "../components/AIProcessVisualization";
-import ImpactDashboard from "../components/ImpactDashboard";
-import GapEvolutionVisual from "../components/GapEvolutionVisual";
+import AgentThinking from "../components/AgentThinking";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
 
@@ -36,6 +34,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [simResult, setSimResult] = useState(null);
   const [explanation, setExplanation] = useState(null);
+  const [trace, setTrace] = useState(null);
+  const [timings, setTimings] = useState(null);
   const [error, setError] = useState(null);
   const [meta, setMeta] = useState(null);
 
@@ -49,13 +49,15 @@ export default function Home() {
     setError(null);
     setSimResult(null);
     setExplanation(null);
+    setTrace(null);
+    setTimings(null);
     setMeta(null);
     try {
       const url = `${API_BASE}/plan_and_explain`;
       const res = await axios.post(
         url,
         { user_text: userText },
-        { timeout: 30000 }
+        { timeout: 60000 }
       );
       let simData = res.data.sim_result;
 
@@ -69,6 +71,8 @@ export default function Home() {
 
       setSimResult(simData);
       setExplanation(res.data.explanation);
+      setTrace(res.data.trace);
+      setTimings(res.data.timings);
       setMeta(res.data.meta);
     } catch (e) {
       setError(e.response?.data?.detail || e.message);
@@ -211,13 +215,13 @@ export default function Home() {
             </div>
           </div>
 
-            <textarea
-              value={userText}
-              onChange={(e) => setUserText(e.target.value)}
-              rows={3}
-              className="w-full p-4 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-900 placeholder-gray-400"
-              placeholder="Example: We are 0.5 seconds ahead at lap 10. Should we pit on lap 12 for hard tires or lap 14 for mediums to maximize our lead?"
-            />
+          <textarea
+            value={userText}
+            onChange={(e) => setUserText(e.target.value)}
+            rows={3}
+            className="w-full p-4 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-gray-900 placeholder-gray-400"
+            placeholder="Example: We are 0.5 seconds ahead at lap 10. Should we pit on lap 12 for hard tires or lap 14 for mediums to maximize our lead?"
+          />
 
           {/* Preset buttons */}
           <div className="mt-4">
@@ -354,16 +358,23 @@ export default function Home() {
         </div>
 
         {loading && (
-          <AIProcessVisualization isActive={loading} simResult={simResult} />
+          <div className="bg-gradient-to-br from-gray-900 to-black rounded-2xl shadow-xl p-12 text-center border-2 border-blue-500 text-white">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full mb-6 animate-pulse">
+              <svg className="h-10 w-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+              </svg>
+            </div>
+            <h3 className="text-2xl font-bold mb-2">AI Agent Working...</h3>
+            <p className="text-gray-400">Analyzing race state, generating strategies, and iterating to convergence</p>
+          </div>
         )}
 
         {simResult ? (
           <>
-            <ImpactDashboard simResult={simResult} explanation={explanation} />
-            <GapEvolutionVisual simResult={simResult} />
+            <AgentThinking trace={trace} timings={timings} meta={meta} />
+            <ExplainerCard explanation={explanation} />
             <ComparePanel simResult={simResult} />
             <Plot simResult={simResult} />
-            <ExplainerCard explanation={explanation} />
           </>
         ) : !loading ? (
           <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg p-12 text-center border-2 border-dashed border-gray-300">

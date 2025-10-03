@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .env
+node_modules/
+.DS_Store
+.next/

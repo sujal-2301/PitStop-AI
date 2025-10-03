@@ -1,0 +1,13 @@
+@import "tailwindcss/preflight";
+@tailwind utilities;
+@import "tailwindcss";
+
+/* optional app styles */
+html,
+body,
+#__next {
+  height: 100%;
+}
+body {
+  @apply bg-gray-50 text-gray-900;
+}

@@ -233,7 +233,8 @@ class IterativePlanner:
                 {"pit_lap": base + 5, "compound": "hard", "rationale": "Late stop on durable tires"},
             ]
         
-        self.trace.add_thinking(f"✅ Generated {len(normalized)} candidates: {[f'L{c['pit_lap']} {c['compound']}' for c in normalized]}")
+        candidates_str = [f"L{c['pit_lap']} {c['compound']}" for c in normalized]
+        self.trace.add_thinking(f"✅ Generated {len(normalized)} candidates: {candidates_str}")
         
         return normalized
     

@@ -9,13 +9,15 @@ from sim.core import simulate, Strategy, SimConfig
 from typing import List
 import requests
 import re
+import os
 
 # in api/main.py
 
 app = FastAPI(title="PitStop AI — Simulation Service", version="0.1")
+orig = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # restrict later
+    allow_origins=[orig, "http://127.0.0.1:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

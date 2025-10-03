@@ -3,7 +3,7 @@ import axios from "axios";
 import Plot from "../components/Plot";
 import ComparePanel from "../components/ComparePanel";
 import ExplainerCard from "../components/ExplainerCard";
-
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://127.0.0.1:8000";
 export default function Home() {
   const [userText, setUserText] = useState(
     "We are 1.5 seconds behind at lap 10. Simulate pitting on lap 12 for mediums."
@@ -20,7 +20,7 @@ export default function Home() {
     setExplanation(null);
     try {
       // For now, call the MOCK endpoint so you don't need LLM keys while wiring the UI:
-      const url = "http://127.0.0.1:8000/plan_and_explain";
+      const url = `${API_BASE}/plan_and_explain`;
       const res = await axios.post(
         url,
         { user_text: userText },

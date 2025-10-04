@@ -97,7 +97,14 @@ export default function AgentThinking({ trace, timings, meta }) {
                       <div className="text-xs text-gray-400">{iter.candidates?.length || 0} strategies tested</div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {iter.results?.slice(0, 4).map((res, ridx) => {
+                      {(iter.results
+                        ? [...iter.results].sort((a, b) => {
+                            const ga = Number(a?.median_gap_after_5_laps ?? -Infinity);
+                            const gb = Number(b?.median_gap_after_5_laps ?? -Infinity);
+                            return gb - ga; // descending: highest (best) first
+                          })
+                        : []
+                      ).slice(0, 4).map((res, ridx) => {
                         const isTop = ridx === 0;
                         return (
                           <div 

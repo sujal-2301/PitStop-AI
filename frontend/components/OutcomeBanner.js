@@ -1,7 +1,7 @@
 // frontend/components/OutcomeBanner.js
 import { useState, useEffect } from "react";
 
-export default function OutcomeBanner({ simResult, explanation }) {
+export default function OutcomeBanner({ simResult, explanation, burstConfidence }) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -38,10 +38,13 @@ export default function OutcomeBanner({ simResult, explanation }) {
     : 0;
 
   // Calculate confidence (based on P10-P90 range tightness)
+  // If burst confidence is available, use it; otherwise calculate from P10-P90
   const p90 = best.p90_by_lap[best.p90_by_lap.length - 1];
   const p10 = best.p10_by_lap[best.p10_by_lap.length - 1];
   const range = Math.abs(p90 - p10);
-  const confidence = Math.max(60, Math.min(95, 95 - range * 3)); // Tighter range = higher confidence
+  const standardConfidence = Math.max(60, Math.min(95, 95 - range * 3));
+  const confidence = burstConfidence?.confidence || standardConfidence;
+  const mcSamples = burstConfidence?.mc_samples || simResult.mc_samples || 400;
 
   // Compound emoji
   const compoundEmoji =
@@ -136,15 +139,27 @@ export default function OutcomeBanner({ simResult, explanation }) {
             </div>
 
             {/* Confidence */}
-            <div className="bg-white/10 backdrop-blur rounded-xl p-4 border border-white/20">
+            <div className="bg-white/10 backdrop-blur rounded-xl p-4 border border-white/20 relative">
+              {burstConfidence && (
+                <div className="absolute -top-2 -right-2 bg-yellow-400 text-gray-900 text-xs font-bold px-2 py-1 rounded-full shadow-lg">
+                  ⚡ HIGH ACCURACY
+                </div>
+              )}
               <div className="text-xs text-green-100 mb-1 uppercase tracking-wide">
-                Confidence
+                Confidence {burstConfidence && <span className="text-yellow-300">⬆ Upgraded</span>}
               </div>
-              <div className="text-3xl font-bold text-white">
-                {confidence.toFixed(0)}%
+              <div className="flex items-baseline gap-2">
+                <div className="text-3xl font-bold text-white">
+                  {confidence.toFixed(1)}%
+                </div>
+                {burstConfidence && standardConfidence && (
+                  <div className="text-sm text-green-300">
+                    (from {standardConfidence.toFixed(1)}%)
+                  </div>
+                )}
               </div>
               <div className="text-xs text-green-100 mt-1">
-                Based on {best.assumptions?.mc_samples || 400} simulations
+                Based on {mcSamples.toLocaleString()} Monte Carlo samples
               </div>
             </div>
           </div>

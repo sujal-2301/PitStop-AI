@@ -41,6 +41,7 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [meta, setMeta] = useState(null);
   const [toolArgs, setToolArgs] = useState(null);
+  const [burstConfidence, setBurstConfidence] = useState(null); // High accuracy mode confidence
 
   // Display mode toggle
   const [advancedMode, setAdvancedMode] = useState(false);
@@ -58,6 +59,7 @@ export default function Home() {
     setTrace(null);
     setTimings(null);
     setMeta(null);
+    setBurstConfidence(null); // Reset burst confidence on new simulation
     try {
       const url = `${API_BASE}/plan_and_explain`;
       const res = await axios.post(
@@ -91,8 +93,11 @@ export default function Home() {
   function handleConfidenceUpdate(burstData) {
     // Update confidence from burst simulation
     if (burstData && burstData.confidence) {
+      setBurstConfidence(burstData);
       // Show notification
-      alert(`✅ High Accuracy Mode Complete!\n\nConfidence upgraded to ${burstData.confidence}% (from 2000 Monte Carlo samples)\n\nTighter confidence bands calculated.`);
+      alert(
+        `✅ High Accuracy Mode Complete!\n\nConfidence upgraded to ${burstData.confidence.toFixed(1)}% (from 2000 Monte Carlo samples)\n\nTighter confidence bands calculated.`
+      );
     }
   }
 
@@ -396,11 +401,15 @@ export default function Home() {
         {simResult ? (
           <>
             {/* Outcome Banner - Always shown first */}
-            <OutcomeBanner simResult={simResult} explanation={explanation} />
+            <OutcomeBanner 
+              simResult={simResult} 
+              explanation={explanation}
+              burstConfidence={burstConfidence}
+            />
 
             {/* Docker MCP Gateway Actions */}
             {toolArgs && (
-              <MCPActions 
+              <MCPActions
                 toolArgs={toolArgs}
                 simResult={simResult}
                 explanation={explanation}

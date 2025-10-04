@@ -239,23 +239,23 @@ def plan_and_explain_mock(req: PlanRequest):
 def find_docker_command():
     """Find docker command in common locations"""
     import shutil
-    
+
     # Try to find docker in PATH
     docker_cmd = shutil.which("docker")
     if docker_cmd:
         return docker_cmd
-    
+
     # Try common locations on macOS
     common_paths = [
         "/usr/local/bin/docker",
         "/opt/homebrew/bin/docker",
         "/Applications/Docker.app/Contents/Resources/bin/docker",
     ]
-    
+
     for path in common_paths:
         if os.path.exists(path):
             return path
-    
+
     return "docker"  # Fallback
 
 
@@ -274,9 +274,9 @@ def mcp_trigger(req: MCPTriggerRequest):
     """
     import subprocess
     import pathlib
-    
+
     action = req.action.lower()
-    
+
     # Find docker command
     docker_cmd = find_docker_command()
 
@@ -304,13 +304,18 @@ def mcp_trigger(req: MCPTriggerRequest):
                 json.dump(result_data, f, indent=2)
 
         # Trigger Docker Compose run via MCP
+        # Need to specify compose file path since we're running from inside container
+        compose_file = pathlib.Path("/app/docker-compose.yml")
+        
         if action == "report":
-            print(f"🐳 MCP: Triggering reporter container using {docker_cmd}...")
+            print(
+                f"🐳 MCP: Triggering reporter container using {docker_cmd}...")
             result = subprocess.run(
-                [docker_cmd, "compose", "run", "--rm", "reporter"],
+                [docker_cmd, "compose", "-f", str(compose_file), "run", "--rm", "reporter"],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
+                cwd="/app"
             )
 
             if result.returncode == 0:
@@ -347,12 +352,14 @@ def mcp_trigger(req: MCPTriggerRequest):
                 )
 
         elif action == "burst":
-            print(f"🐳 MCP: Triggering burst simulation container using {docker_cmd}...")
+            print(
+                f"🐳 MCP: Triggering burst simulation container using {docker_cmd}...")
             result = subprocess.run(
-                [docker_cmd, "compose", "run", "--rm", "sim-burst"],
+                [docker_cmd, "compose", "-f", str(compose_file), "run", "--rm", "sim-burst"],
                 capture_output=True,
                 text=True,
-                timeout=180
+                timeout=180,
+                cwd="/app"
             )
 
             if result.returncode == 0:
@@ -401,7 +408,7 @@ def mcp_status():
     Get Docker container status (demonstrates MCP read operations)
     """
     import subprocess
-    
+
     docker_cmd = find_docker_command()
 
     try:
@@ -461,7 +468,7 @@ def mcp_logs(service: str, tail: int = 50):
     Get container logs (demonstrates MCP observability)
     """
     import subprocess
-    
+
     docker_cmd = find_docker_command()
 
     if service not in ["api", "frontend", "reporter", "sim-burst"]:

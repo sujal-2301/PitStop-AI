@@ -37,14 +37,14 @@ You: "We're 0.5s ahead at lap 8. Pit lap 12 for hards or lap 10 for mediums?"
 
 ## 🏆 Why This Matters
 
-| Feature | Description |
-|---------|-------------|
-| 🤖 **True Agentic AI** | Multi-stage workflow: Parse → Plan → Simulate → Analyze → Refine → Converge |
-| 🔍 **Full Transparency** | See the agent's thinking: iterations, token usage, timings, tool arguments |
+| Feature                       | Description                                                                        |
+| ----------------------------- | ---------------------------------------------------------------------------------- |
+| 🤖 **True Agentic AI**        | Multi-stage workflow: Parse → Plan → Simulate → Analyze → Refine → Converge        |
+| 🔍 **Full Transparency**      | See the agent's thinking: iterations, token usage, timings, tool arguments         |
 | 📊 **Monte Carlo Simulation** | Stochastic lap times, tire degradation, pit loss with P10/P50/P90 confidence bands |
-| 🎨 **Accessible UX** | No F1 knowledge required—clear visuals and explanations for everyone |
-| ⚡ **Powered by Cerebras** | Fast inference with Meta Llama models via OpenAI-compatible tools API |
-| 🐳 **One-Command Deploy** | `docker compose up` and you're racing in 2 minutes |
+| 🎨 **Accessible UX**          | No F1 knowledge required—clear visuals and explanations for everyone               |
+| ⚡ **Powered by Cerebras**    | Fast inference with Meta Llama models via OpenAI-compatible tools API              |
+| 🐳 **One-Command Deploy**     | `docker compose up` and you're racing in 2 minutes                                 |
 
 ---
 
@@ -72,11 +72,11 @@ docker compose up --build
 
 ### Access Points
 
-| Service | URL | Description |
-|---------|-----|-------------|
-| 🎨 **Frontend** | [http://localhost:3000](http://localhost:3000) | Main UI with agent thinking visualization |
-| 🔧 **API** | [http://localhost:8000](http://localhost:8000) | FastAPI backend |
-| ✅ **Health Check** | [http://localhost:8000/healthz](http://localhost:8000/healthz) | API status |
+| Service             | URL                                                            | Description                               |
+| ------------------- | -------------------------------------------------------------- | ----------------------------------------- |
+| 🎨 **Frontend**     | [http://localhost:3000](http://localhost:3000)                 | Main UI with agent thinking visualization |
+| 🔧 **API**          | [http://localhost:8000](http://localhost:8000)                 | FastAPI backend                           |
+| ✅ **Health Check** | [http://localhost:8000/healthz](http://localhost:8000/healthz) | API status                                |
 
 > **⚡ Pro Tip:** Works in mock mode without API key—full simulation, deterministic explanations!
 
@@ -143,7 +143,7 @@ graph TD
     E -->|Converged?| F{Decision}
     F -->|No - Refine| C
     F -->|Yes - Done| G[✨ Best Strategy + Trace]
-    
+
     style A fill:#e1f5ff
     style B fill:#fff4e6
     style C fill:#f3e5f5
@@ -157,14 +157,14 @@ graph TD
 
 ### 🔄 Multi-Stage Process
 
-| Stage | Actor | Description | Output |
-|-------|-------|-------------|--------|
-| 1️⃣ **Parse** | 🧠 LLM (Planner) | Extracts lap, gap, tire compound/age, objectives, constraints | Structured race state |
-| 2️⃣ **Generate** | 🧠 LLM (Planner) | Proposes 2-4 strategies (undercut/overcut, soft/medium/hard) | Candidate list |
-| 3️⃣ **Simulate** | 🎲 Monte Carlo Engine | Stochastic lap times, degradation, pit loss (400 samples) | P10/P50/P90 gaps |
-| 4️⃣ **Analyze** | 🧠 LLM (Planner) | Evaluates results, proposes refinements or stops | Continue/Converge |
-| 5️⃣ **Refine** | 🔄 Loop | Generates new variations, goes back to step 3 | New candidates |
-| 6️⃣ **Converge** | ✅ Threshold | Stops at max iterations (3) or when top strategies within 0.1s | Final recommendation |
+| Stage           | Actor                 | Description                                                    | Output                |
+| --------------- | --------------------- | -------------------------------------------------------------- | --------------------- |
+| 1️⃣ **Parse**    | 🧠 LLM (Planner)      | Extracts lap, gap, tire compound/age, objectives, constraints  | Structured race state |
+| 2️⃣ **Generate** | 🧠 LLM (Planner)      | Proposes 2-4 strategies (undercut/overcut, soft/medium/hard)   | Candidate list        |
+| 3️⃣ **Simulate** | 🎲 Monte Carlo Engine | Stochastic lap times, degradation, pit loss (400 samples)      | P10/P50/P90 gaps      |
+| 4️⃣ **Analyze**  | 🧠 LLM (Planner)      | Evaluates results, proposes refinements or stops               | Continue/Converge     |
+| 5️⃣ **Refine**   | 🔄 Loop               | Generates new variations, goes back to step 3                  | New candidates        |
+| 6️⃣ **Converge** | ✅ Threshold          | Stops at max iterations (3) or when top strategies within 0.1s | Final recommendation  |
 
 ---
 
@@ -234,11 +234,11 @@ PitStop-AI/
 
 ### Endpoints
 
-| Method | Endpoint | Description | Response |
-|--------|----------|-------------|----------|
-| `GET` | `/healthz` | Health check | `{ status: "ok", data_loaded: true }` |
-| `POST` | `/run_sim` | Run Monte Carlo simulation | Simulation results with P10/P50/P90 |
-| `POST` | `/plan_and_explain` | Full agent workflow | `{ tool_args, sim_result, trace, explanation, timings, meta }` |
+| Method | Endpoint            | Description                | Response                                                       |
+| ------ | ------------------- | -------------------------- | -------------------------------------------------------------- |
+| `GET`  | `/healthz`          | Health check               | `{ status: "ok", data_loaded: true }`                          |
+| `POST` | `/run_sim`          | Run Monte Carlo simulation | Simulation results with P10/P50/P90                            |
+| `POST` | `/plan_and_explain` | Full agent workflow        | `{ tool_args, sim_result, trace, explanation, timings, meta }` |
 
 ### Example Response
 
@@ -275,10 +275,10 @@ PitStop-AI/
 
 ### 🚨 Safety Car Support
 
-| Parameter | Type | Description | Default |
-|-----------|------|-------------|---------|
-| `sc_window` | `{ start_lap, end_lap }` | Laps when SC is active | `null` |
-| `sc_pit_loss_factor` | `float` | Pit loss multiplier during SC | `0.6` (40% faster) |
+| Parameter            | Type                     | Description                   | Default            |
+| -------------------- | ------------------------ | ----------------------------- | ------------------ |
+| `sc_window`          | `{ start_lap, end_lap }` | Laps when SC is active        | `null`             |
+| `sc_pit_loss_factor` | `float`                  | Pit loss multiplier during SC | `0.6` (40% faster) |
 
 **Example**: SC from lap 11-13 → pitting on lap 12 has 60% normal pit loss (~12.6s vs ~21s)
 
@@ -286,13 +286,13 @@ PitStop-AI/
 
 ## ⚡ Performance & Reliability
 
-| Feature | Implementation | Benefit |
-|---------|----------------|---------|
-| 🗂️ **LRU Cache** | `@lru_cache(maxsize=512)` on simulation | Avoid recomputing identical requests |
-| 📊 **Data Preload** | CSV loaded once on startup | No per-request file I/O |
-| 🏥 **Health Checks** | Docker healthchecks with `curl` | Robust service orchestration |
-| ⏱️ **Timing Metrics** | Planner/explainer/total exposed | Transparency and debugging |
-| 🔄 **Convergence Logic** | Max 3 iterations or 0.1s threshold | Efficient exploration |
+| Feature                  | Implementation                          | Benefit                              |
+| ------------------------ | --------------------------------------- | ------------------------------------ |
+| 🗂️ **LRU Cache**         | `@lru_cache(maxsize=512)` on simulation | Avoid recomputing identical requests |
+| 📊 **Data Preload**      | CSV loaded once on startup              | No per-request file I/O              |
+| 🏥 **Health Checks**     | Docker healthchecks with `curl`         | Robust service orchestration         |
+| ⏱️ **Timing Metrics**    | Planner/explainer/total exposed         | Transparency and debugging           |
+| 🔄 **Convergence Logic** | Max 3 iterations or 0.1s threshold      | Efficient exploration                |
 
 ---
 
@@ -300,11 +300,11 @@ PitStop-AI/
 
 <div align="center">
 
-| Sponsor | Integration | Impact |
-|---------|-------------|--------|
+| Sponsor           | Integration                                                              | Impact                                                |
+| ----------------- | ------------------------------------------------------------------------ | ----------------------------------------------------- |
 | **🦙 Meta Llama** | `llama-4-scout-17b-16e-instruct`<br>`llama-4-maverick-17b-128e-instruct` | Powers all agent reasoning (parse, generate, analyze) |
-| **⚡ Cerebras** | OpenAI-compatible tools API<br>`https://api.cerebras.ai/v1` | Fast inference for iterative planning loops |
-| **🐳 Docker** | Multi-service compose<br>Health checks, isolated builds | One-command deployment, production-ready |
+| **⚡ Cerebras**   | OpenAI-compatible tools API<br>`https://api.cerebras.ai/v1`              | Fast inference for iterative planning loops           |
+| **🐳 Docker**     | Multi-service compose<br>Health checks, isolated builds                  | One-command deployment, production-ready              |
 
 </div>
 
@@ -328,13 +328,13 @@ PitStop-AI/
 
 ## 🛠️ Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| ❌ "Agent modules not available" | Ensure containers built: `docker compose up --build` |
-| 🔑 "No LLM key → mock mode" | Set `LLM_API_KEY` in `.env` for full agent; mock works without key |
-| 🌐 CORS errors | Check `FRONTEND_ORIGIN` matches your frontend URL |
-| 🔌 Port conflicts | Stop services on 3000/8000 or change ports in `docker-compose.yml` |
-| 🐢 Slow simulation | Reduce `mc_samples` (default 400) or check CPU allocation |
+| Issue                            | Solution                                                           |
+| -------------------------------- | ------------------------------------------------------------------ |
+| ❌ "Agent modules not available" | Ensure containers built: `docker compose up --build`               |
+| 🔑 "No LLM key → mock mode"      | Set `LLM_API_KEY` in `.env` for full agent; mock works without key |
+| 🌐 CORS errors                   | Check `FRONTEND_ORIGIN` matches your frontend URL                  |
+| 🔌 Port conflicts                | Stop services on 3000/8000 or change ports in `docker-compose.yml` |
+| 🐢 Slow simulation               | Reduce `mc_samples` (default 400) or check CPU allocation          |
 
 ---
 

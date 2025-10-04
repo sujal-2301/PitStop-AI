@@ -37,3 +37,35 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
+
+  # MCP Gateway - Ephemeral reporter service
+  reporter:
+    image: node:20-bullseye
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - ./reports:/app/reports
+    command: ["node", "scripts/reporter.mjs"]
+    environment:
+      - API_BASE_URL=http://api:8000
+    profiles:
+      - mcp
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # MCP Gateway - High accuracy burst simulation
+  sim-burst:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - ./artifacts:/app/artifacts
+    command: ["python", "scripts/burst_sim.py"]
+    environment:
+      - API_BASE_URL=http://api:8000
+    profiles:
+      - mcp
+    depends_on:
+      api:
+        condition: service_healthy

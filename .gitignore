@@ -13,3 +13,7 @@ VISUAL_IMPROVEMENTS.md
 AGENTIC_UPGRADE.md
 *.md
 !README.md
+
+# Docker MCP Gateway artifacts
+reports/
+artifacts/

@@ -134,12 +134,12 @@ def plan_and_explain(req: PlanRequest):
             status_code=500, detail=f"Agent modules not available: {e}")
 
     cfg = LLMConfig()
-    
+
     # Fallback to mock if no LLM key
     if not cfg.api_key or cfg.api_key == "":
         print("⚠️  No LLM_API_KEY found - using mock mode")
         return plan_and_explain_mock(req)
-    
+
     t0 = time.perf_counter()
     try:
         planner = IterativePlanner(cfg)
@@ -153,10 +153,10 @@ def plan_and_explain(req: PlanRequest):
     except Exception as e:
         # if explainer fails, still return sim_result so the UI isn't blocked
         return {
-            "tool_args": result["tool_args"], 
-            "sim_result": result["sim_result"], 
+            "tool_args": result["tool_args"],
+            "sim_result": result["sim_result"],
             "trace": result.get("trace"),
-            "explanation": None, 
+            "explanation": None,
             "explainer_error": str(e),
             "timings": {"planner_s": round(t1-t0, 3)}
         }
@@ -164,7 +164,7 @@ def plan_and_explain(req: PlanRequest):
 
     # Explanation is a Pydantic model; convert to dict
     return {
-        "tool_args": result["tool_args"], 
+        "tool_args": result["tool_args"],
         "sim_result": result["sim_result"],
         "trace": result.get("trace"),  # Agent thinking trace
         "explanation": expl.dict(),
@@ -233,3 +233,226 @@ def plan_and_explain_mock(req: PlanRequest):
             status_code=502, detail=f"run_sim call failed: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ Docker MCP Gateway Endpoints ============
+
+class MCPTriggerRequest(BaseModel):
+    action: str  # "report" or "burst"
+    tool_args: Dict[str, Any]
+    sim_result: Optional[Dict[str, Any]] = None
+    explanation: Optional[Dict[str, Any]] = None
+
+
+@app.post("/mcp/trigger")
+def mcp_trigger(req: MCPTriggerRequest):
+    """
+    Trigger Docker MCP Gateway actions (report generation, burst simulation)
+    This demonstrates creative Docker orchestration for on-demand tasks
+    """
+    import subprocess
+    import pathlib
+    
+    action = req.action.lower()
+    
+    if action not in ["report", "burst"]:
+        raise HTTPException(status_code=400, detail=f"Invalid action: {action}")
+    
+    try:
+        # Write tool_args to artifacts directory
+        artifacts_dir = pathlib.Path("./artifacts")
+        artifacts_dir.mkdir(exist_ok=True)
+        
+        tool_args_path = artifacts_dir / "tool_args.json"
+        with open(tool_args_path, "w") as f:
+            json.dump(req.tool_args, f, indent=2)
+        
+        # If sim_result and explanation provided, write them too
+        if req.sim_result and req.explanation:
+            result_data = {
+                "sim_result": req.sim_result,
+                "explanation": req.explanation
+            }
+            result_path = artifacts_dir / "sim_result.json"
+            with open(result_path, "w") as f:
+                json.dump(result_data, f, indent=2)
+        
+        # Trigger Docker Compose run via MCP
+        if action == "report":
+            print(f"🐳 MCP: Triggering reporter container...")
+            result = subprocess.run(
+                ["docker", "compose", "run", "--rm", "reporter"],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            
+            if result.returncode == 0:
+                # Read report metadata
+                reports_dir = pathlib.Path("./reports")
+                meta_path = reports_dir / "latest.json"
+                
+                if meta_path.exists():
+                    with open(meta_path, "r") as f:
+                        meta = json.load(f)
+                    
+                    return {
+                        "status": "success",
+                        "action": "report",
+                        "message": "Report generated successfully",
+                        "artifact": {
+                            "filename": meta["filename"],
+                            "path": f"/reports/{meta['filename']}",
+                            "timestamp": meta["timestamp"]
+                        },
+                        "logs": result.stdout
+                    }
+                else:
+                    return {
+                        "status": "success",
+                        "action": "report",
+                        "message": "Report generated",
+                        "logs": result.stdout
+                    }
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Reporter failed: {result.stderr}"
+                )
+        
+        elif action == "burst":
+            print(f"🐳 MCP: Triggering burst simulation container...")
+            result = subprocess.run(
+                ["docker", "compose", "run", "--rm", "sim-burst"],
+                capture_output=True,
+                text=True,
+                timeout=180
+            )
+            
+            if result.returncode == 0:
+                # Read burst result
+                burst_path = pathlib.Path("./artifacts/sim_burst.json")
+                
+                if burst_path.exists():
+                    with open(burst_path, "r") as f:
+                        burst_data = json.load(f)
+                    
+                    return {
+                        "status": "success",
+                        "action": "burst",
+                        "message": "High accuracy simulation complete",
+                        "data": burst_data,
+                        "logs": result.stdout
+                    }
+                else:
+                    return {
+                        "status": "success",
+                        "action": "burst",
+                        "message": "Burst simulation complete",
+                        "logs": result.stdout
+                    }
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Burst simulation failed: {result.stderr}"
+                )
+    
+    except subprocess.TimeoutExpired:
+        raise HTTPException(
+            status_code=504,
+            detail=f"MCP action '{action}' timed out"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"MCP trigger failed: {str(e)}"
+        )
+
+
+@app.get("/mcp/status")
+def mcp_status():
+    """
+    Get Docker container status (demonstrates MCP read operations)
+    """
+    import subprocess
+    
+    try:
+        # Get container status
+        ps_result = subprocess.run(
+            ["docker", "compose", "ps", "--format", "json"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        containers = []
+        if ps_result.returncode == 0 and ps_result.stdout.strip():
+            try:
+                # Parse JSON lines
+                for line in ps_result.stdout.strip().split('\n'):
+                    if line.strip():
+                        containers.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
+        
+        # Get stats (CPU, memory)
+        stats_result = subprocess.run(
+            ["docker", "stats", "--no-stream", "--format", "{{json .}}"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        stats = []
+        if stats_result.returncode == 0 and stats_result.stdout.strip():
+            try:
+                for line in stats_result.stdout.strip().split('\n'):
+                    if line.strip():
+                        stats.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
+        
+        return {
+            "status": "ok",
+            "containers": containers,
+            "stats": stats,
+            "mcp_enabled": True
+        }
+    
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "mcp_enabled": False
+        }
+
+
+@app.get("/mcp/logs/{service}")
+def mcp_logs(service: str, tail: int = 50):
+    """
+    Get container logs (demonstrates MCP observability)
+    """
+    import subprocess
+    
+    if service not in ["api", "frontend", "reporter", "sim-burst"]:
+        raise HTTPException(status_code=400, detail=f"Invalid service: {service}")
+    
+    try:
+        result = subprocess.run(
+            ["docker", "compose", "logs", "--tail", str(tail), service],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        return {
+            "service": service,
+            "logs": result.stdout,
+            "tail": tail
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get logs: {str(e)}"
+        )

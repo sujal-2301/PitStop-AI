@@ -14,7 +14,7 @@ export default function MCPActions({
   const [burstLoading, setBurstLoading] = useState(false);
   const [reportUrl, setReportUrl] = useState(null);
   const [error, setError] = useState(null);
-  
+
   // Docker MCP status tracking
   const [mcpStatus, setMcpStatus] = useState([]);
   const [showDetails, setShowDetails] = useState(false);
@@ -32,7 +32,7 @@ export default function MCPActions({
     setError(null);
     setMcpStatus([]);
     setShowDetails(true);
-    
+
     addStatus("🐳 Docker MCP Gateway: Initiating report generation...");
     addStatus("📝 Writing simulation data to artifacts/sim_result.json...");
 
@@ -49,7 +49,12 @@ export default function MCPActions({
       );
 
       addStatus("✅ Docker container orchestration complete!");
-      addStatus(`📄 Report generated: ${response.data.artifact?.filename || "report.pdf"}`, "success");
+      addStatus(
+        `📄 Report generated: ${
+          response.data.artifact?.filename || "report.pdf"
+        }`,
+        "success"
+      );
 
       if (response.data.status === "success" && response.data.artifact) {
         const reportPath = `${window.location.origin}${response.data.artifact.path}`;
@@ -57,7 +62,10 @@ export default function MCPActions({
         window.open(`/reports/${response.data.artifact.filename}`, "_blank");
       }
     } catch (err) {
-      addStatus(`❌ Error: ${err.response?.data?.detail || err.message}`, "error");
+      addStatus(
+        `❌ Error: ${err.response?.data?.detail || err.message}`,
+        "error"
+      );
       setError(err.response?.data?.detail || err.message);
     } finally {
       setReportLoading(false);
@@ -71,11 +79,17 @@ export default function MCPActions({
     setShowDetails(true);
     setBurstData(null);
 
-    addStatus("🐳 Docker MCP Gateway: Initiating high-accuracy burst simulation...");
+    addStatus(
+      "🐳 Docker MCP Gateway: Initiating high-accuracy burst simulation..."
+    );
     addStatus("📦 Spawning ephemeral Docker container: sim-burst...");
-    addStatus("🔧 Container using image: pitstopai-api:latest (with all dependencies)");
-    addStatus("📊 Configuring Monte Carlo simulation: 2000 samples (5x standard)...");
-    
+    addStatus(
+      "🔧 Container using image: pitstopai-api:latest (with all dependencies)"
+    );
+    addStatus(
+      "📊 Configuring Monte Carlo simulation: 2000 samples (5x standard)..."
+    );
+
     const startTime = Date.now();
 
     try {
@@ -89,24 +103,44 @@ export default function MCPActions({
       );
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-      
+
       addStatus("✅ Docker container executed successfully!");
       addStatus(`⏱️ Total execution time: ${duration}s`);
-      
+
       if (response.data.status === "success" && response.data.data) {
         setBurstData(response.data.data);
-        
-        addStatus(`📈 Confidence upgraded: ${response.data.data.confidence.toFixed(1)}%`, "success");
-        addStatus(`🎯 P10-P90 range tightened: ${Math.abs(response.data.data.p90 - response.data.data.p10).toFixed(2)}s`, "success");
-        addStatus(`🧮 Processed ${response.data.data.mc_samples.toLocaleString()} Monte Carlo samples`, "success");
-        
+
+        const p10 = response.data.data.best_candidate?.p10 || 0;
+        const p90 = response.data.data.best_candidate?.p90 || 0;
+        const range = Math.abs(p90 - p10);
+
+        addStatus(
+          `📈 Confidence upgraded: ${response.data.data.confidence.toFixed(
+            1
+          )}%`,
+          "success"
+        );
+        addStatus(
+          `🎯 P10-P90 range tightened: ${range.toFixed(2)}s`,
+          "success"
+        );
+        addStatus(
+          `🧮 Processed ${response.data.data.mc_samples.toLocaleString()} Monte Carlo samples`,
+          "success"
+        );
+
         // Update confidence in parent
         if (onConfidenceUpdate) {
           onConfidenceUpdate(response.data.data);
         }
       }
     } catch (err) {
-      addStatus(`❌ Container execution failed: ${err.response?.data?.detail || err.message}`, "error");
+      addStatus(
+        `❌ Container execution failed: ${
+          err.response?.data?.detail || err.message
+        }`,
+        "error"
+      );
       setError(err.response?.data?.detail || err.message);
     } finally {
       setBurstLoading(false);
@@ -132,12 +166,19 @@ export default function MCPActions({
           >
             {showDetails ? "Hide" : "Show"} Details
             <svg
-              className={`w-4 h-4 transition-transform ${showDetails ? "rotate-180" : ""}`}
+              className={`w-4 h-4 transition-transform ${
+                showDetails ? "rotate-180" : ""
+              }`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
         )}
@@ -271,21 +312,31 @@ export default function MCPActions({
       {burstData && (
         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-            <div className="text-xs text-purple-600 font-semibold">Samples Processed</div>
+            <div className="text-xs text-purple-600 font-semibold">
+              Samples Processed
+            </div>
             <div className="text-2xl font-bold text-purple-900">
               {burstData.mc_samples.toLocaleString()}
             </div>
           </div>
           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-            <div className="text-xs text-green-600 font-semibold">Confidence</div>
+            <div className="text-xs text-green-600 font-semibold">
+              Confidence
+            </div>
             <div className="text-2xl font-bold text-green-900">
               {burstData.confidence.toFixed(1)}%
             </div>
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div className="text-xs text-blue-600 font-semibold">P10-P90 Range</div>
+            <div className="text-xs text-blue-600 font-semibold">
+              P10-P90 Range
+            </div>
             <div className="text-2xl font-bold text-blue-900">
-              {Math.abs(burstData.p90 - burstData.p10).toFixed(2)}s
+              {(() => {
+                const p10 = burstData.best_candidate?.p10 || 0;
+                const p90 = burstData.best_candidate?.p90 || 0;
+                return Math.abs(p90 - p10).toFixed(2);
+              })()}s
             </div>
           </div>
         </div>

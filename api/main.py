@@ -1,12 +1,11 @@
 # api/main.py
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
 from api.schemas import SimRequest, SimResponse
 import pandas as pd
 from sim.core import simulate, Strategy, SimConfig
-from typing import List
 import requests
 import re
 import os
@@ -252,21 +251,22 @@ def mcp_trigger(req: MCPTriggerRequest):
     """
     import subprocess
     import pathlib
-    
+
     action = req.action.lower()
-    
+
     if action not in ["report", "burst"]:
-        raise HTTPException(status_code=400, detail=f"Invalid action: {action}")
-    
+        raise HTTPException(
+            status_code=400, detail=f"Invalid action: {action}")
+
     try:
         # Write tool_args to artifacts directory
         artifacts_dir = pathlib.Path("./artifacts")
         artifacts_dir.mkdir(exist_ok=True)
-        
+
         tool_args_path = artifacts_dir / "tool_args.json"
         with open(tool_args_path, "w") as f:
             json.dump(req.tool_args, f, indent=2)
-        
+
         # If sim_result and explanation provided, write them too
         if req.sim_result and req.explanation:
             result_data = {
@@ -276,7 +276,7 @@ def mcp_trigger(req: MCPTriggerRequest):
             result_path = artifacts_dir / "sim_result.json"
             with open(result_path, "w") as f:
                 json.dump(result_data, f, indent=2)
-        
+
         # Trigger Docker Compose run via MCP
         if action == "report":
             print(f"🐳 MCP: Triggering reporter container...")
@@ -286,16 +286,16 @@ def mcp_trigger(req: MCPTriggerRequest):
                 text=True,
                 timeout=60
             )
-            
+
             if result.returncode == 0:
                 # Read report metadata
                 reports_dir = pathlib.Path("./reports")
                 meta_path = reports_dir / "latest.json"
-                
+
                 if meta_path.exists():
                     with open(meta_path, "r") as f:
                         meta = json.load(f)
-                    
+
                     return {
                         "status": "success",
                         "action": "report",
@@ -319,7 +319,7 @@ def mcp_trigger(req: MCPTriggerRequest):
                     status_code=500,
                     detail=f"Reporter failed: {result.stderr}"
                 )
-        
+
         elif action == "burst":
             print(f"🐳 MCP: Triggering burst simulation container...")
             result = subprocess.run(
@@ -328,15 +328,15 @@ def mcp_trigger(req: MCPTriggerRequest):
                 text=True,
                 timeout=180
             )
-            
+
             if result.returncode == 0:
                 # Read burst result
                 burst_path = pathlib.Path("./artifacts/sim_burst.json")
-                
+
                 if burst_path.exists():
                     with open(burst_path, "r") as f:
                         burst_data = json.load(f)
-                    
+
                     return {
                         "status": "success",
                         "action": "burst",
@@ -356,7 +356,7 @@ def mcp_trigger(req: MCPTriggerRequest):
                     status_code=500,
                     detail=f"Burst simulation failed: {result.stderr}"
                 )
-    
+
     except subprocess.TimeoutExpired:
         raise HTTPException(
             status_code=504,
@@ -375,7 +375,7 @@ def mcp_status():
     Get Docker container status (demonstrates MCP read operations)
     """
     import subprocess
-    
+
     try:
         # Get container status
         ps_result = subprocess.run(
@@ -384,7 +384,7 @@ def mcp_status():
             text=True,
             timeout=10
         )
-        
+
         containers = []
         if ps_result.returncode == 0 and ps_result.stdout.strip():
             try:
@@ -394,7 +394,7 @@ def mcp_status():
                         containers.append(json.loads(line))
             except json.JSONDecodeError:
                 pass
-        
+
         # Get stats (CPU, memory)
         stats_result = subprocess.run(
             ["docker", "stats", "--no-stream", "--format", "{{json .}}"],
@@ -402,7 +402,7 @@ def mcp_status():
             text=True,
             timeout=10
         )
-        
+
         stats = []
         if stats_result.returncode == 0 and stats_result.stdout.strip():
             try:
@@ -411,14 +411,14 @@ def mcp_status():
                         stats.append(json.loads(line))
             except json.JSONDecodeError:
                 pass
-        
+
         return {
             "status": "ok",
             "containers": containers,
             "stats": stats,
             "mcp_enabled": True
         }
-    
+
     except Exception as e:
         return {
             "status": "error",
@@ -433,10 +433,11 @@ def mcp_logs(service: str, tail: int = 50):
     Get container logs (demonstrates MCP observability)
     """
     import subprocess
-    
+
     if service not in ["api", "frontend", "reporter", "sim-burst"]:
-        raise HTTPException(status_code=400, detail=f"Invalid service: {service}")
-    
+        raise HTTPException(
+            status_code=400, detail=f"Invalid service: {service}")
+
     try:
         result = subprocess.run(
             ["docker", "compose", "logs", "--tail", str(tail), service],
@@ -444,13 +445,13 @@ def mcp_logs(service: str, tail: int = 50):
             text=True,
             timeout=10
         )
-        
+
         return {
             "service": service,
             "logs": result.stdout,
             "tail": tail
         }
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=500,

@@ -94,10 +94,7 @@ export default function Home() {
     // Update confidence from burst simulation
     if (burstData && burstData.confidence) {
       setBurstConfidence(burstData);
-      // Show notification
-      alert(
-        `✅ High Accuracy Mode Complete!\n\nConfidence upgraded to ${burstData.confidence.toFixed(1)}% (from 2000 Monte Carlo samples)\n\nTighter confidence bands calculated.`
-      );
+      // UI will automatically update to show the upgraded confidence with visual indicators
     }
   }
 
@@ -400,9 +397,37 @@ export default function Home() {
 
         {simResult ? (
           <>
+            {/* High Accuracy Completion Notification */}
+            {burstConfidence && (
+              <div className="mb-6 animate-[slideDown_0.5s_ease-out]">
+                <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl shadow-2xl p-6 border-l-4 border-yellow-400">
+                  <div className="flex items-center gap-4">
+                    <div className="flex-shrink-0 w-14 h-14 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-3xl animate-bounce">
+                      ⚡
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold mb-1 flex items-center gap-2">
+                        ✅ High Accuracy Mode Complete!
+                      </h3>
+                      <p className="text-green-50">
+                        Confidence upgraded to{" "}
+                        <span className="font-bold text-yellow-300">
+                          {burstConfidence.confidence.toFixed(1)}%
+                        </span>{" "}
+                        using 2,000 Monte Carlo samples
+                      </p>
+                      <p className="text-sm text-green-100 mt-1">
+                        📊 Tighter confidence bands calculated for more reliable predictions
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* Outcome Banner - Always shown first */}
-            <OutcomeBanner 
-              simResult={simResult} 
+            <OutcomeBanner
+              simResult={simResult}
               explanation={explanation}
               burstConfidence={burstConfidence}
             />

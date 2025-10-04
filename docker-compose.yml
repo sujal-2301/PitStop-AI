@@ -7,12 +7,14 @@ services:
     environment:
       SIM_API_URL: "http://api:8000/run_sim" # override for in-cluster calls
       FRONTEND_ORIGIN: "http://localhost:3000"
+      PROJECT_ROOT: "${PWD}"  # Pass host path for MCP Gateway
     ports:
       - "8000:8000"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock  # Docker socket for MCP Gateway
-      - ./reports:/app/reports  # Shared reports directory
-      - ./artifacts:/app/artifacts  # Shared artifacts directory
+      - /var/run/docker.sock:/var/run/docker.sock # Docker socket for MCP Gateway
+      - "${PWD}:${PWD}"  # Mount project at same path for sibling containers
+      - "${PWD}/reports:/app/reports" # Shared reports directory
+      - "${PWD}/artifacts:/app/artifacts" # Shared artifacts directory
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
@@ -43,10 +45,9 @@ services:
   # MCP Gateway - Ephemeral reporter service
   reporter:
     image: node:20-bullseye
-    working_dir: /app
+    working_dir: ${PWD}
     volumes:
-      - ./:/app
-      - ./reports:/app/reports
+      - "${PWD}:${PWD}"  # Mount at host path for consistency
     command: ["node", "scripts/reporter.mjs"]
     environment:
       - API_BASE_URL=http://api:8000
@@ -59,10 +60,9 @@ services:
   # MCP Gateway - High accuracy burst simulation
   sim-burst:
     image: python:3.11-slim
-    working_dir: /app
+    working_dir: ${PWD}
     volumes:
-      - ./:/app
-      - ./artifacts:/app/artifacts
+      - "${PWD}:${PWD}"  # Mount at host path for consistency
     command: ["python", "scripts/burst_sim.py"]
     environment:
       - API_BASE_URL=http://api:8000

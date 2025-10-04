@@ -304,18 +304,21 @@ def mcp_trigger(req: MCPTriggerRequest):
                 json.dump(result_data, f, indent=2)
 
         # Trigger Docker Compose run via MCP
-        # Need to specify compose file path since we're running from inside container
-        compose_file = pathlib.Path("/app/docker-compose.yml")
-        
+        # Use PROJECT_ROOT environment variable to find compose file on host
+        project_root = os.getenv("PROJECT_ROOT", "/app")
+        compose_file = pathlib.Path(project_root) / "docker-compose.yml"
+
         if action == "report":
             print(
                 f"🐳 MCP: Triggering reporter container using {docker_cmd}...")
+            print(f"🐳 MCP: Project root: {project_root}, Compose file: {compose_file}")
             result = subprocess.run(
-                [docker_cmd, "compose", "-f", str(compose_file), "run", "--rm", "reporter"],
+                [docker_cmd, "compose", "-f",
+                    str(compose_file), "run", "--rm", "reporter"],
                 capture_output=True,
                 text=True,
                 timeout=60,
-                cwd="/app"
+                cwd=str(project_root)
             )
 
             if result.returncode == 0:
@@ -354,12 +357,14 @@ def mcp_trigger(req: MCPTriggerRequest):
         elif action == "burst":
             print(
                 f"🐳 MCP: Triggering burst simulation container using {docker_cmd}...")
+            print(f"🐳 MCP: Project root: {project_root}, Compose file: {compose_file}")
             result = subprocess.run(
-                [docker_cmd, "compose", "-f", str(compose_file), "run", "--rm", "sim-burst"],
+                [docker_cmd, "compose", "-f",
+                    str(compose_file), "run", "--rm", "sim-burst"],
                 capture_output=True,
                 text=True,
                 timeout=180,
-                cwd="/app"
+                cwd=str(project_root)
             )
 
             if result.returncode == 0:

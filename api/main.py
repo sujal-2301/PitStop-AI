@@ -3,6 +3,8 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from api.schemas import SimRequest, SimResponse
 import pandas as pd
 from sim.core import simulate, Strategy, SimConfig
@@ -12,6 +14,7 @@ import os
 from functools import lru_cache
 import json
 import time
+from pathlib import Path
 
 app = FastAPI(title="PitStop AI — Simulation Service", version="0.1")
 
@@ -40,6 +43,14 @@ def load_race_data():
         DF = None
 
 
+@app.on_event("startup")
+def setup_reports_directory():
+    """Ensure reports directory exists"""
+    reports_dir = Path("./reports")
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    print(f"✓ Reports directory ready: {reports_dir}")
+
+
 @app.get("/healthz")
 def health():
     """Health check endpoint for Docker and monitoring"""
@@ -48,6 +59,21 @@ def health():
         "data_loaded": DF is not None,
         "service": "PitStop AI API"
     }
+
+
+@app.get("/reports/{filename}")
+def serve_report(filename: str):
+    """Serve generated reports (HTML/PDF)"""
+    report_path = Path("./reports") / filename
+    
+    if not report_path.exists():
+        raise HTTPException(status_code=404, detail=f"Report not found: {filename}")
+    
+    # Ensure file is within reports directory (security)
+    if not str(report_path.resolve()).startswith(str(Path("./reports").resolve())):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    return FileResponse(report_path)
 
 
 @lru_cache(maxsize=512)
@@ -311,7 +337,8 @@ def mcp_trigger(req: MCPTriggerRequest):
         if action == "report":
             print(
                 f"🐳 MCP: Triggering reporter container using {docker_cmd}...")
-            print(f"🐳 MCP: Project root: {project_root}, Compose file: {compose_file}")
+            print(
+                f"🐳 MCP: Project root: {project_root}, Compose file: {compose_file}")
             result = subprocess.run(
                 [docker_cmd, "compose", "-f",
                     str(compose_file), "run", "--rm", "reporter"],
@@ -357,7 +384,8 @@ def mcp_trigger(req: MCPTriggerRequest):
         elif action == "burst":
             print(
                 f"🐳 MCP: Triggering burst simulation container using {docker_cmd}...")
-            print(f"🐳 MCP: Project root: {project_root}, Compose file: {compose_file}")
+            print(
+                f"🐳 MCP: Project root: {project_root}, Compose file: {compose_file}")
             result = subprocess.run(
                 [docker_cmd, "compose", "-f",
                     str(compose_file), "run", "--rm", "sim-burst"],

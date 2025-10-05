@@ -57,9 +57,9 @@ export default function MCPActions({
       );
 
       if (response.data.status === "success" && response.data.artifact) {
-        const reportPath = `${window.location.origin}${response.data.artifact.path}`;
-        setReportUrl(reportPath);
-        window.open(`/reports/${response.data.artifact.filename}`, "_blank");
+        const reportUrl = `${API_BASE}/reports/${response.data.artifact.filename}`;
+        setReportUrl(reportUrl);
+        window.open(reportUrl, "_blank");
       }
     } catch (err) {
       addStatus(
@@ -336,7 +336,8 @@ export default function MCPActions({
                 const p10 = burstData.best_candidate?.p10 || 0;
                 const p90 = burstData.best_candidate?.p90 || 0;
                 return Math.abs(p90 - p10).toFixed(2);
-              })()}s
+              })()}
+              s
             </div>
           </div>
         </div>

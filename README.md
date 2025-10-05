@@ -11,7 +11,7 @@
 
 **Powered by** [Meta Llama](https://ai.meta.com/llama/) • [Cerebras](https://cerebras.net/) • [Docker](https://docker.com/)
 
-[🚀 Quick Start](#-quick-start) • [📖 Documentation](#-agentic-workflow) • [🎯 Demo](#-demo-guide) • [🏆 Features](#-why-this-matters)
+[🚀 Quick Start](#-quick-start) • [🆕 What’s New](#-whats-new) • [📖 Documentation](#-agentic-workflow) • [🎯 Demo](#-demo-guide) • [🏆 Features](#-why-this-matters)
 
 ---
 
@@ -32,6 +32,17 @@ You: "We're 0.5s ahead at lap 8. Pit lap 12 for hards or lap 10 for mediums?"
                                   ↓
         ✨ Result: "Pit lap 12 (hard) → +1.24s ahead by lap 18"
 ```
+
+---
+
+## 🆕 What’s New
+
+- CSV upload + in‑app data preview: bring your own telemetry and preview the first rows/columns in the UI
+- Simplified chart (RaceChart): intuitive “ahead vs behind” visualization; highlights the recommended strategy
+- High Accuracy Mode (Docker MCP Gateway): runs 2,000 Monte Carlo samples in an ephemeral container; realtime logs + animated completion banner
+- AgentThinking refinement: dedicated section shows upgraded confidence, tightened P10–P90, and refined best candidate after High Accuracy
+- One‑click report generation: reporter container renders PDF/PNG; reports are served by the API at `/reports/<filename>`
+- Public hardening: MCP endpoints gated by `ENABLE_MCP`; `.env.*` ignored; `.env` not baked into images
 
 ---
 
@@ -89,6 +100,7 @@ Create a `.env` file in the project root:
 ```bash
 # Frontend
 FRONTEND_ORIGIN=http://localhost:3000
+NEXT_PUBLIC_API_BASE=http://localhost:8000
 
 # LLM Configuration (Cerebras)
 LLM_API_BASE=https://api.cerebras.ai/v1
@@ -100,6 +112,9 @@ LLM_MODEL_EXPLAINER=llama-4-maverick-17b-128e-instruct
 
 # Simulation API
 SIM_API_URL=http://127.0.0.1:8000/run_sim
+
+# Docker MCP Gateway (High Accuracy & Reports)
+ENABLE_MCP=true
 ```
 
 ---
@@ -122,9 +137,23 @@ SIM_API_URL=http://127.0.0.1:8000/run_sim
    ├─ Agent Thinking Panel (iterations, tokens: ~1,250, time: ~3.5s)
    ├─ Recommendation: "Pit lap 12 (hard) → +1.24s ahead"
    ├─ Strategy Comparison (visual cards with progress bars)
-   └─ (Optional) Detailed chart with P10/P50/P90 confidence bands
+   └─ Simplified Race Chart (thick line = recommended, green dashed = even)
 
-4. 🚨 Try Safety Car Mode
+4. ⚡ High Accuracy Mode (Docker MCP)
+   ├─ Click “High Accuracy Mode” to compute 2,000 samples in an ephemeral container
+   ├─ Watch realtime Docker MCP logs + summary cards (samples, confidence, P10–P90)
+   └─ Outcome banner shows “HIGH ACCURACY” and upgraded confidence
+
+5. 🧾 Generate Report (Docker MCP)
+   ├─ Click “Generate PDF Report” → reporter container renders PDF/PNG
+   └─ Report served at `/reports/<filename>` and opened in a new tab
+
+6. 🗂️ Upload Your CSV
+   ├─ Use the “Race Data Source” panel → upload CSV to replace in-memory dataset
+   ├─ Click “Refresh” to preview columns and first 50 rows
+   └─ Click “Use Default” to restore bundled `data/synth_race.csv`
+
+7. 🚨 Try Safety Car Mode
    Use preset "⚡ Safety Car Opportunity" to see reduced pit loss modeling
 ```
 
@@ -217,9 +246,11 @@ PitStop-AI/
 │   ├── pages/
 │   │   └── index.js         # Main Next.js page
 │   ├── components/
-│   │   ├── AgentThinking.js # Agent trace visualization
+│   │   ├── AgentThinking.js # Agent trace visualization (+ High Accuracy refinement)
 │   │   ├── ComparePanel.js  # Strategy comparison
-│   │   ├── Plot.js          # Gap evolution chart
+│   │   ├── OutcomeBanner.js # Key metrics & confidence (shows HIGH ACCURACY)
+│   │   ├── MCPActions.js    # Docker MCP actions, logs, and summary cards
+│   │   ├── RaceChart.js     # Simplified “ahead vs behind” chart
 │   │   └── ExplainerCard.js # AI recommendation
 │   ├── Dockerfile           # Frontend container
 │   └── package.json         # Node dependencies
@@ -237,8 +268,15 @@ PitStop-AI/
 | Method | Endpoint            | Description                | Response                                                       |
 | ------ | ------------------- | -------------------------- | -------------------------------------------------------------- |
 | `GET`  | `/healthz`          | Health check               | `{ status: "ok", data_loaded: true }`                          |
-| `POST` | `/run_sim`          | Run Monte Carlo simulation | Simulation results with P10/P50/P90                            |
+| `POST` | `/run_sim`          | Run Monte Carlo simulation | Simulation results (400 samples default)                        |
 | `POST` | `/plan_and_explain` | Full agent workflow        | `{ tool_args, sim_result, trace, explanation, timings, meta }` |
+| `POST` | `/data/upload`      | Upload CSV dataset         | Replaces in-memory dataset; clears sim cache                    |
+| `GET`  | `/data?limit=50`    | Preview dataset            | `{ columns, total_rows, rows: [...] }`                          |
+| `POST` | `/data/reset`       | Restore default dataset    | Reloads `data/synth_race.csv`                                   |
+| `POST` | `/mcp/trigger`      | MCP: `report`/`burst`      | Triggers reporter or high-accuracy (requires `ENABLE_MCP=true`) |
+| `GET`  | `/mcp/status`       | MCP status                 | Container/process stats (when enabled)                          |
+| `GET`  | `/mcp/logs/{svc}`   | MCP logs                   | Service logs (when enabled)                                     |
+| `GET`  | `/reports/{file}`   | Serve generated reports    | Returns static report files                                     |
 
 ### Example Response
 
@@ -270,7 +308,9 @@ PitStop-AI/
   - Medium: 18 laps baseline, +0.10s/lap degradation
   - Hard: 22 laps baseline, +0.08s/lap degradation
 - **Pit Loss**: Sampled from N(21.0s, 0.5s) distribution
-- **Confidence Bands**: P10/P50/P90 percentiles (10th, 50th, 90th)
+- **Baseline Samples**: 400 samples per run (configurable)
+- **High Accuracy Mode**: 2,000 samples via Docker MCP `sim-burst` service
+- **Confidence Bands**: Internally computed P10/P50/P90; UI shows simplified view
 - **Breakeven Lap**: First lap where gap returns to pre-pit level
 
 ### 🚨 Safety Car Support
@@ -293,6 +333,7 @@ PitStop-AI/
 | 🏥 **Health Checks**     | Docker healthchecks with `curl`         | Robust service orchestration         |
 | ⏱️ **Timing Metrics**    | Planner/explainer/total exposed         | Transparency and debugging           |
 | 🔄 **Convergence Logic** | Max 3 iterations or 0.1s threshold      | Efficient exploration                |
+| 🐳 **Docker MCP Gateway**| Ephemeral reporter & sim-burst services | Creative, auditable heavy workloads  |
 
 ---
 
@@ -304,7 +345,7 @@ PitStop-AI/
 | ----------------- | ------------------------------------------------------------------------ | ----------------------------------------------------- |
 | **🦙 Meta Llama** | `llama-4-scout-17b-16e-instruct`<br>`llama-4-maverick-17b-128e-instruct` | Powers all agent reasoning (parse, generate, analyze) |
 | **⚡ Cerebras**   | OpenAI-compatible tools API<br>`https://api.cerebras.ai/v1`              | Fast inference for iterative planning loops           |
-| **🐳 Docker**     | Multi-service compose<br>Health checks, isolated builds                  | One-command deployment, production-ready              |
+| **🐳 Docker**     | Multi-service compose<br>MCP Gateway (reporter, sim-burst)               | One-command deploy + creative orchestration           |
 
 </div>
 
@@ -323,6 +364,9 @@ PitStop-AI/
    - Converged at 0.08s delta
 4. **Review** → Final recommendation and comparison cards
 5. **Explore** → Try Safety Car preset to see SC modeling
+6. **Upgrade Accuracy** → Click High Accuracy Mode and watch MCP logs & summary
+7. **Upload CSV** → Use “Race Data Source” to bring your own data + preview
+8. **Report** → Generate PDF report and open from `/reports/...`
 
 ---
 
@@ -335,6 +379,10 @@ PitStop-AI/
 | 🌐 CORS errors                   | Check `FRONTEND_ORIGIN` matches your frontend URL                  |
 | 🔌 Port conflicts                | Stop services on 3000/8000 or change ports in `docker-compose.yml` |
 | 🐢 Slow simulation               | Reduce `mc_samples` (default 400) or check CPU allocation          |
+| ❌ MCP 403/disabled              | Set `ENABLE_MCP=true` and rebuild API                              |
+| ❌ MCP compose errors            | Share your project path in Docker Desktop → Settings → Resources   |
+| ❌ Report 404                    | Ensure `/reports` exists (created on startup) and reporter ran     |
+| 🌐 ERR_CONNECTION_REFUSED       | Start services in background: `docker compose up -d`               |
 
 ---
 

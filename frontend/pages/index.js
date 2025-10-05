@@ -101,22 +101,30 @@ export default function Home() {
   const presets = [
     {
       label: "🏆 Extend Lead Strategy",
-      text: "We are 0.5s ahead at lap 8. Should we pit lap 10 medium or lap 12 hard to maximize our advantage?",
+      text: "We are 0.8s ahead at lap 8. Should we pit lap 10 medium or lap 12 hard to maximize our advantage and stay ahead?",
     },
     {
-      label: "🎯 Overtake Strategy",
-      text: "We are 0.3s behind at lap 15. Can we pit lap 18 soft and overtake, or stay out lap 20 medium?",
+      label: "⚔️ Undercut Attack",
+      text: "We are 0.2s behind at lap 10. Can we undercut by pitting lap 12 soft to jump ahead when they pit lap 14?",
+    },
+    {
+      label: "🎯 Defend Lead Strategy",
+      text: "We are 1.0s ahead at lap 13. They might undercut us. Pit lap 15 medium to cover or stay out lap 17 hard?",
     },
     {
       label: "⚡ Safety Car Opportunity",
-      text: "We are 1.2s ahead at lap 10. Pit lap 12 under Safety Car or wait until lap 15?",
+      text: "We are 0.5s ahead at lap 10. Pit lap 12 under Safety Car to extend lead, or risk staying out until lap 15?",
       enableSC: true,
       scStart: 11,
       scEnd: 13,
     },
     {
-      label: "🔥 Closing the Gap",
-      text: "We are 0.8s behind at lap 12. Aggressive pit lap 14 soft vs conservative lap 16 medium?",
+      label: "🚀 Overcut Strategy",
+      text: "We are 0.4s behind at lap 14. Stay out lap 16-17 on fresh tires to overcut when they pit lap 15?",
+    },
+    {
+      label: "💪 Maximize Advantage",
+      text: "We are 1.5s ahead at lap 9. Pit lap 11 soft for speed or lap 13 medium for consistency to stay in front?",
     },
   ];
 
@@ -221,7 +229,7 @@ export default function Home() {
         {/* Strategy Input Section */}
         <div className="bg-white rounded-xl shadow-lg p-6">
           <div className="flex items-center justify-between mb-4">
-            <div>
+        <div>
               <label className="block text-lg font-semibold text-gray-900">
                 🎤 Ask Your Strategy Question
               </label>
@@ -417,14 +425,15 @@ export default function Home() {
                         using 2,000 Monte Carlo samples
                       </p>
                       <p className="text-sm text-green-100 mt-1">
-                        📊 Tighter confidence bands calculated for more reliable predictions
+                        📊 Tighter confidence bands calculated for more reliable
+                        predictions
                       </p>
                     </div>
                   </div>
                 </div>
               </div>
             )}
-            
+
             {/* Outcome Banner - Always shown first */}
             <OutcomeBanner
               simResult={simResult}
@@ -500,7 +509,7 @@ export default function Home() {
                 <AgentThinking trace={trace} timings={timings} meta={meta} />
                 <ExplainerCard explanation={explanation} />
                 <ComparePanel simResult={simResult} />
-                <Plot simResult={simResult} />
+            <Plot simResult={simResult} />
               </>
             )}
           </>

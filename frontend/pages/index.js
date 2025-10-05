@@ -1,6 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
-import Plot from "../components/Plot";
+import RaceChart from "../components/RaceChart";
 import ComparePanel from "../components/ComparePanel";
 import ExplainerCard from "../components/ExplainerCard";
 import AgentThinking from "../components/AgentThinking";
@@ -42,6 +42,9 @@ export default function Home() {
   const [meta, setMeta] = useState(null);
   const [toolArgs, setToolArgs] = useState(null);
   const [burstConfidence, setBurstConfidence] = useState(null); // High accuracy mode confidence
+  const [burstData, setBurstData] = useState(null); // High accuracy detailed data
+  const [dataPreview, setDataPreview] = useState(null); // race data preview
+  const [uploading, setUploading] = useState(false);
 
   // Display mode toggle
   const [advancedMode, setAdvancedMode] = useState(false);
@@ -60,6 +63,7 @@ export default function Home() {
     setTimings(null);
     setMeta(null);
     setBurstConfidence(null); // Reset burst confidence on new simulation
+    setBurstData(null); // Reset burst data on new simulation
     try {
       const url = `${API_BASE}/plan_and_explain`;
       const res = await axios.post(
@@ -89,42 +93,81 @@ export default function Home() {
       setLoading(false);
     }
   }
+  async function fetchDataPreview() {
+    try {
+      const res = await axios.get(`${API_BASE}/data?limit=50`, {
+        timeout: 15000,
+      });
+      setDataPreview(res.data);
+    } catch (e) {
+      // ignore for now
+    }
+  }
+
+  async function handleUploadCSV(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      await axios.post(`${API_BASE}/data/upload`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 60000,
+      });
+      await fetchDataPreview();
+    } catch (err) {
+      alert(`Upload failed: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleResetData() {
+    try {
+      await axios.post(`${API_BASE}/data/reset`, {}, { timeout: 15000 });
+      await fetchDataPreview();
+    } catch (err) {
+      alert(`Reset failed: ${err.response?.data?.detail || err.message}`);
+    }
+  }
 
   function handleConfidenceUpdate(burstData) {
     // Update confidence from burst simulation
     if (burstData && burstData.confidence) {
       setBurstConfidence(burstData);
+      setBurstData(burstData);
       // UI will automatically update to show the upgraded confidence with visual indicators
     }
   }
 
   const presets = [
     {
-      label: "🏆 Extend Lead Strategy",
-      text: "We are 0.8s ahead at lap 8. Should we pit lap 10 medium or lap 12 hard to maximize our advantage and stay ahead?",
+      label: "⚔️ Undercut to Win",
+      text: "We are 0.3s behind at lap 10. Can we pit lap 12 soft to undercut and finish ahead when they pit lap 14?",
     },
     {
-      label: "⚔️ Undercut Attack",
-      text: "We are 0.2s behind at lap 10. Can we undercut by pitting lap 12 soft to jump ahead when they pit lap 14?",
+      label: "🚀 Overcut Attack",
+      text: "We are 0.5s behind at lap 14. Stay out until lap 17 on fresh tires to overcut and finish ahead?",
     },
     {
-      label: "🎯 Defend Lead Strategy",
-      text: "We are 1.0s ahead at lap 13. They might undercut us. Pit lap 15 medium to cover or stay out lap 17 hard?",
-    },
-    {
-      label: "⚡ Safety Car Opportunity",
-      text: "We are 0.5s ahead at lap 10. Pit lap 12 under Safety Car to extend lead, or risk staying out until lap 15?",
+      label: "⚡ Safety Car Gamble",
+      text: "We are 0.4s behind at lap 10. Pit lap 12 under Safety Car to gain track position and finish ahead?",
       enableSC: true,
       scStart: 11,
       scEnd: 13,
     },
     {
-      label: "🚀 Overcut Strategy",
-      text: "We are 0.4s behind at lap 14. Stay out lap 16-17 on fresh tires to overcut when they pit lap 15?",
+      label: "💪 Aggressive Soft Strategy",
+      text: "We are 0.6s behind at lap 8. Pit lap 10 soft for raw pace to close gap and finish ahead by lap 18?",
     },
     {
-      label: "💪 Maximize Advantage",
-      text: "We are 1.5s ahead at lap 9. Pit lap 11 soft for speed or lap 13 medium for consistency to stay in front?",
+      label: "🎯 Early Stop Advantage",
+      text: "We are 0.2s behind at lap 9. Can an early pit lap 11 medium help us build pace and finish ahead?",
+    },
+    {
+      label: "🏆 Late Race Push",
+      text: "We are 0.7s behind at lap 13. Stay out until lap 16 hard to preserve tires and finish ahead with fresher rubber?",
     },
   ];
 
@@ -185,6 +228,83 @@ export default function Home() {
       </div>
 
       <div className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+        {/* Data source controls */}
+        <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-emerald-500">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <span className="text-2xl">🗂️</span> Race Data Source
+            </h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchDataPreview}
+                className="px-3 py-2 text-sm bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+              >
+                Refresh
+              </button>
+              <button
+                onClick={handleResetData}
+                className="px-3 py-2 text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+              >
+                Use Default
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row md:items-center gap-3">
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleUploadCSV}
+                disabled={uploading}
+                className="block text-sm"
+              />
+              {uploading && <span className="text-gray-500">Uploading…</span>}
+            </label>
+          </div>
+
+          {dataPreview && (
+            <div className="mt-4">
+              <div className="text-xs text-gray-600 mb-2">
+                Loaded rows: <strong>{dataPreview.rows}</strong> • Columns:{" "}
+                {dataPreview.columns.join(", ")}
+              </div>
+              <div className="overflow-auto max-h-56 border rounded-lg">
+                <table className="min-w-full text-xs">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      {dataPreview.columns.map((c) => (
+                        <th
+                          key={c}
+                          className="px-3 py-2 text-left font-semibold text-gray-700 border-b"
+                        >
+                          {c}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dataPreview.preview.map((row, idx) => (
+                      <tr
+                        key={idx}
+                        className={idx % 2 ? "bg-white" : "bg-gray-50"}
+                      >
+                        {dataPreview.columns.map((c) => (
+                          <td
+                            key={c}
+                            className="px-3 py-1 border-b text-gray-700"
+                          >
+                            {String(row[c])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
         {/* What This Does - Info Section */}
         <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
           <h2 className="text-lg font-semibold mb-3 flex items-center">
@@ -229,7 +349,7 @@ export default function Home() {
         {/* Strategy Input Section */}
         <div className="bg-white rounded-xl shadow-lg p-6">
           <div className="flex items-center justify-between mb-4">
-        <div>
+            <div>
               <label className="block text-lg font-semibold text-gray-900">
                 🎤 Ask Your Strategy Question
               </label>
@@ -506,10 +626,18 @@ export default function Home() {
             {/* Advanced Mode - Full details */}
             {advancedMode && (
               <>
-                <AgentThinking trace={trace} timings={timings} meta={meta} />
+                <AgentThinking
+                  trace={trace}
+                  timings={timings}
+                  meta={meta}
+                  burstData={burstData}
+                />
                 <ExplainerCard explanation={explanation} />
                 <ComparePanel simResult={simResult} />
-            <Plot simResult={simResult} />
+                <RaceChart
+                  simResult={simResult}
+                  selectedIndex={explanation?.metrics?.selected_index ?? 0}
+                />
               </>
             )}
           </>

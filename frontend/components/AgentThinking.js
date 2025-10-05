@@ -1,7 +1,7 @@
 // frontend/components/AgentThinking.js
 import { useState } from "react";
 
-export default function AgentThinking({ trace, timings, meta }) {
+export default function AgentThinking({ trace, timings, meta, burstData }) {
   const [expanded, setExpanded] = useState(true);
 
   if (!trace) return null;
@@ -179,6 +179,54 @@ export default function AgentThinking({ trace, timings, meta }) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* High Accuracy refinement (if any) */}
+          {burstData && (
+            <div className="bg-green-900/20 rounded-xl p-4 border border-green-700">
+              <h4 className="text-lg font-semibold mb-3 flex items-center gap-2 text-green-300">
+                <span>⚡</span> High Accuracy Refinement
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                <div className="bg-green-900/40 p-3 rounded-lg border border-green-700">
+                  <div className="text-green-300 text-xs">Confidence</div>
+                  <div className="text-2xl font-bold text-green-200">
+                    {burstData.confidence?.toFixed(1)}%
+                  </div>
+                </div>
+                <div className="bg-green-900/40 p-3 rounded-lg border border-green-700">
+                  <div className="text-green-300 text-xs">Samples</div>
+                  <div className="text-2xl font-bold text-green-200">
+                    {burstData.mc_samples?.toLocaleString()}
+                  </div>
+                </div>
+                <div className="bg-green-900/40 p-3 rounded-lg border border-green-700">
+                  <div className="text-green-300 text-xs">P10–P90 Range</div>
+                  <div className="text-2xl font-bold text-green-200">
+                    {(() => {
+                      const p10 = burstData.best_candidate?.p10 || 0;
+                      const p90 = burstData.best_candidate?.p90 || 0;
+                      return Math.abs(p90 - p10).toFixed(2);
+                    })()}
+                    s
+                  </div>
+                </div>
+              </div>
+              {burstData.best_candidate && (
+                <div className="mt-3 text-sm text-green-100">
+                  Best candidate: L{burstData.best_candidate.pit_lap}{" "}
+                  {String(
+                    burstData.best_candidate.compound || ""
+                  ).toUpperCase()}{" "}
+                  • Median after +5 laps:{" "}
+                  {burstData.best_candidate.median_gap_after_5_laps >= 0
+                    ? "+"
+                    : ""}
+                  {burstData.best_candidate.median_gap_after_5_laps?.toFixed(2)}
+                  s
+                </div>
+              )}
             </div>
           )}
 

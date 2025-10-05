@@ -29,7 +29,8 @@ COPY sim /app/sim
 COPY data /app/data
 COPY docker-compose.yml /app/docker-compose.yml
 COPY scripts /app/scripts
-COPY .env /app/.env
+# Do not bake local .env into public images
+# COPY .env /app/.env
 
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8000

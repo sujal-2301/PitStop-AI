@@ -1,7 +1,11 @@
 // frontend/components/OutcomeBanner.js
 import { useState, useEffect } from "react";
 
-export default function OutcomeBanner({ simResult, explanation, burstConfidence }) {
+export default function OutcomeBanner({
+  simResult,
+  explanation,
+  burstConfidence,
+}) {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -146,7 +150,10 @@ export default function OutcomeBanner({ simResult, explanation, burstConfidence 
                 </div>
               )}
               <div className="text-xs text-green-100 mb-1 uppercase tracking-wide">
-                Confidence {burstConfidence && <span className="text-yellow-300">⬆ Upgraded</span>}
+                Confidence{" "}
+                {burstConfidence && (
+                  <span className="text-yellow-300">⬆ Upgraded</span>
+                )}
               </div>
               <div className="flex items-baseline gap-2">
                 <div className="text-3xl font-bold text-white">

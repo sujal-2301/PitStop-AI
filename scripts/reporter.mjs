@@ -3,18 +3,18 @@
 // Generates a simple HTML report for strategy recommendation
 // Can be extended with Puppeteer for PDF generation
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Read tool_args from environment or file
-const toolArgsPath = process.env.TOOL_ARGS_PATH || './artifacts/tool_args.json';
-const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:8000';
+const toolArgsPath = process.env.TOOL_ARGS_PATH || "./artifacts/tool_args.json";
+const apiBaseUrl = process.env.API_BASE_URL || "http://localhost:8000";
 
-console.log('📄 PitStop AI Reporter - Generating strategy report...');
+console.log("📄 PitStop AI Reporter - Generating strategy report...");
 
 async function generateReport() {
   try {
@@ -24,17 +24,19 @@ async function generateReport() {
       process.exit(1);
     }
 
-    const toolArgs = JSON.parse(fs.readFileSync(toolArgsPath, 'utf8'));
-    console.log(`✅ Loaded tool args: ${toolArgs.candidates?.length || 0} candidates`);
+    const toolArgs = JSON.parse(fs.readFileSync(toolArgsPath, "utf8"));
+    console.log(
+      `✅ Loaded tool args: ${toolArgs.candidates?.length || 0} candidates`
+    );
 
     // Fetch simulation result (in real scenario, this would call the API)
     // For now, we'll read from a cached result if available
-    const resultPath = './artifacts/sim_result.json';
+    const resultPath = "./artifacts/sim_result.json";
     let simResult = null;
     let explanation = null;
 
     if (fs.existsSync(resultPath)) {
-      const data = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+      const data = JSON.parse(fs.readFileSync(resultPath, "utf8"));
       simResult = data.sim_result;
       explanation = data.explanation;
     }
@@ -43,40 +45,50 @@ async function generateReport() {
     const html = generateHTML(toolArgs, simResult, explanation);
 
     // Write to reports directory
-    const reportsDir = path.join(__dirname, '../reports');
+    const reportsDir = path.join(__dirname, "../reports");
     if (!fs.existsSync(reportsDir)) {
       fs.mkdirSync(reportsDir, { recursive: true });
     }
 
-    const timestamp = new Date().toISOString().replace(/:/g, '-').slice(0, -5);
+    const timestamp = new Date().toISOString().replace(/:/g, "-").slice(0, -5);
     const htmlPath = path.join(reportsDir, `strategy-report-${timestamp}.html`);
-    
-    fs.writeFileSync(htmlPath, html, 'utf8');
+
+    fs.writeFileSync(htmlPath, html, "utf8");
     console.log(`✅ Report generated: ${htmlPath}`);
 
     // Write metadata
-    const metaPath = path.join(reportsDir, 'latest.json');
-    fs.writeFileSync(metaPath, JSON.stringify({
-      timestamp,
-      filename: `strategy-report-${timestamp}.html`,
-      path: htmlPath
-    }, null, 2), 'utf8');
+    const metaPath = path.join(reportsDir, "latest.json");
+    fs.writeFileSync(
+      metaPath,
+      JSON.stringify(
+        {
+          timestamp,
+          filename: `strategy-report-${timestamp}.html`,
+          path: htmlPath,
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
 
-    console.log('✨ Report generation complete!');
+    console.log("✨ Report generation complete!");
     process.exit(0);
-
   } catch (error) {
-    console.error('❌ Report generation failed:', error);
+    console.error("❌ Report generation failed:", error);
     process.exit(1);
   }
 }
 
 function generateHTML(toolArgs, simResult, explanation) {
   const bestCandidate = simResult?.candidates?.[0] || {};
-  const pitLap = bestCandidate.candidate?.pit_lap || toolArgs.candidates?.[0]?.pit_lap || 'N/A';
-  const compound = bestCandidate.candidate?.compound?.toUpperCase() || 'N/A';
-  const finalGap = bestCandidate.median_gap_after_5_laps?.toFixed(2) || 'N/A';
-  const baseGap = toolArgs.base_target_gap_s?.toFixed(2) || 'N/A';
+  const pitLap =
+    bestCandidate.candidate?.pit_lap ||
+    toolArgs.candidates?.[0]?.pit_lap ||
+    "N/A";
+  const compound = bestCandidate.candidate?.compound?.toUpperCase() || "N/A";
+  const finalGap = bestCandidate.median_gap_after_5_laps?.toFixed(2) || "N/A";
+  const baseGap = toolArgs.base_target_gap_s?.toFixed(2) || "N/A";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -216,26 +228,43 @@ function generateHTML(toolArgs, simResult, explanation) {
         </div>
         <div class="metric-card">
           <div class="label">Net Change</div>
-          <div class="value">${(parseFloat(finalGap) - parseFloat(baseGap)).toFixed(2)}s</div>
+          <div class="value">${(
+            parseFloat(finalGap) - parseFloat(baseGap)
+          ).toFixed(2)}s</div>
         </div>
       </div>
 
-      ${explanation ? `
+      ${
+        explanation
+          ? `
       <div class="rationale">
         <h3>💡 Why This Strategy Works</h3>
         <ul>
-          ${explanation.rationale?.slice(0, 3).map(r => `<li>• ${r}</li>`).join('') || '<li>Analysis complete</li>'}
+          ${
+            explanation.rationale
+              ?.slice(0, 3)
+              .map((r) => `<li>• ${r}</li>`)
+              .join("") || "<li>Analysis complete</li>"
+          }
         </ul>
       </div>
-      ` : ''}
+      `
+          : ""
+      }
 
       <div class="rationale">
         <h3>📋 Race Context</h3>
         <ul>
           <li><strong>Current Lap:</strong> ${toolArgs.base_lap}</li>
-          <li><strong>Current Tires:</strong> ${toolArgs.current_compound?.toUpperCase()} (${toolArgs.current_tire_age} laps old)</li>
-          <li><strong>Candidates Evaluated:</strong> ${toolArgs.candidates?.length || 0}</li>
-          <li><strong>Monte Carlo Samples:</strong> ${toolArgs.mc_samples || 400}</li>
+          <li><strong>Current Tires:</strong> ${toolArgs.current_compound?.toUpperCase()} (${
+    toolArgs.current_tire_age
+  } laps old)</li>
+          <li><strong>Candidates Evaluated:</strong> ${
+            toolArgs.candidates?.length || 0
+          }</li>
+          <li><strong>Monte Carlo Samples:</strong> ${
+            toolArgs.mc_samples || 400
+          }</li>
         </ul>
       </div>
     </div>
@@ -250,4 +279,3 @@ function generateHTML(toolArgs, simResult, explanation) {
 }
 
 generateReport();
-

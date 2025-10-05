@@ -2,7 +2,7 @@
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from api.schemas import SimRequest, SimResponse
@@ -15,6 +15,7 @@ from functools import lru_cache
 import json
 import time
 from pathlib import Path
+import io
 
 app = FastAPI(title="PitStop AI — Simulation Service", version="0.1")
 
@@ -65,15 +66,80 @@ def health():
 def serve_report(filename: str):
     """Serve generated reports (HTML/PDF)"""
     report_path = Path("./reports") / filename
-    
+
     if not report_path.exists():
-        raise HTTPException(status_code=404, detail=f"Report not found: {filename}")
-    
+        raise HTTPException(
+            status_code=404, detail=f"Report not found: {filename}")
+
     # Ensure file is within reports directory (security)
     if not str(report_path.resolve()).startswith(str(Path("./reports").resolve())):
         raise HTTPException(status_code=403, detail="Access denied")
-    
+
     return FileResponse(report_path)
+
+
+# ============ Race data management ============
+
+@app.post("/data/upload")
+async def upload_race_data(file: UploadFile = File(...)):
+    """Upload a CSV to replace the in-memory race dataset used by the simulator.
+    Clears the simulation cache so subsequent runs use the new data.
+    """
+    global DF
+    try:
+        content = await file.read()
+        df = pd.read_csv(io.BytesIO(content))
+        if df is None or df.empty:
+            raise ValueError("CSV parsed but is empty")
+
+        # Replace global dataframe and clear cache
+        DF = df
+        try:
+            _cached_simulate.cache_clear()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+        # Persist a copy for reference
+        Path("data").mkdir(parents=True, exist_ok=True)
+        ts = int(time.time())
+        save_path = Path("data") / f"uploaded_{ts}.csv"
+        with open(save_path, "wb") as f:
+            f.write(content)
+
+        return {
+            "status": "ok",
+            "rows": len(df),
+            "columns": list(df.columns),
+            "saved_as": str(save_path),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to load CSV: {e}")
+
+
+@app.get("/data")
+def get_race_data(limit: int = 50):
+    """Return a preview of the currently loaded race data and basic metadata."""
+    if DF is None:
+        raise HTTPException(status_code=404, detail="No race data loaded")
+
+    limit = max(1, min(int(limit), 500))
+    preview = DF.head(limit).to_dict(orient="records")
+    return {
+        "rows": len(DF),
+        "columns": list(DF.columns),
+        "preview": preview,
+    }
+
+
+@app.post("/data/reset")
+def reset_race_data():
+    """Reload bundled default dataset from data/synth_race.csv."""
+    load_race_data()
+    try:
+        _cached_simulate.cache_clear()  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    return {"status": "ok", "message": "Race data reset to default"}
 
 
 @lru_cache(maxsize=512)
@@ -303,6 +369,11 @@ def mcp_trigger(req: MCPTriggerRequest):
 
     action = req.action.lower()
 
+    # Gate behind feature flag to prevent misuse in public deployments
+    if os.getenv("ENABLE_MCP", "false").lower() not in ["1", "true", "yes"]:
+        raise HTTPException(
+            status_code=403, detail="MCP disabled on this deployment")
+
     # Find docker command
     docker_cmd = find_docker_command()
 
@@ -442,6 +513,9 @@ def mcp_status():
     """
     import subprocess
 
+    if os.getenv("ENABLE_MCP", "false").lower() not in ["1", "true", "yes"]:
+        return {"status": "disabled", "mcp_enabled": False}
+
     docker_cmd = find_docker_command()
 
     try:
@@ -501,6 +575,9 @@ def mcp_logs(service: str, tail: int = 50):
     Get container logs (demonstrates MCP observability)
     """
     import subprocess
+
+    if os.getenv("ENABLE_MCP", "false").lower() not in ["1", "true", "yes"]:
+        raise HTTPException(status_code=403, detail="MCP disabled")
 
     docker_cmd = find_docker_command()
 

@@ -8,6 +8,7 @@ services:
       SIM_API_URL: "http://api:8000/run_sim" # override for in-cluster calls
       FRONTEND_ORIGIN: "http://localhost:3000"
       PROJECT_ROOT: "${PWD}" # Pass host path for MCP Gateway
+      ENABLE_MCP: "true"
     ports:
       - "8000:8000"
     volumes:
@@ -59,7 +60,7 @@ services:
 
   # MCP Gateway - High accuracy burst simulation
   sim-burst:
-    image: pitstopai-api:latest  # Use same image as API with all dependencies
+    image: pitstopai-api:latest # Use same image as API with all dependencies
     working_dir: ${PWD}
     volumes:
       - "${PWD}:${PWD}" # Mount at host path for consistency
